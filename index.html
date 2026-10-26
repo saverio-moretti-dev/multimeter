@@ -1,0 +1,3496 @@
+<!DOCTYPE html>
+<!--
+  ciao! sono SEM Brana e questo è il multi metering che ho fatto. è un progetto opensource, puoi tranquillamente modificare il codice come preferisci (a tuo rischio e pericolo). è proibita la vendita anche parziale del codice.
+  se il metering ti piace ti chiedo solo un favore: dai un ascolto alla mia musica, potrebbe piacerti :)
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEM Brana // audio visualizer</title>
+
+<style>
+:root {
+  --black:       #000000;
+  --black-light: #0a0a0a;
+  --black-mid:   #0d0d0d;
+  --black-dark:  #080808;
+  --border:      #1e1e1e;
+  --border2:     #2a2a2a;
+  --grey-light:  #c8c8c8;
+  --dim:         #4a4a4a;
+  --dim2:        #333333;
+  --green:       #00ff88;
+  --green2:      #00cc66;
+  --green3:      #009944;
+  --green-dim:   rgba(0,255,136,0.08);
+  --green-mid:   rgba(0,255,136,0.18);
+  --green-glow:  0 0 8px rgba(0,255,136,0.35);
+  --accent:      #00ccff;
+  --accent2:     #00a8cc;
+  --accent3:     #007a99;
+  --accent-dim:  rgba(0,204,255,0.08);
+  --accent-mid:  rgba(0,204,255,0.18);
+  --accent-glow: 0 0 8px rgba(0,204,255,0.35);
+  --accent-line: rgba(0,204,255,0.10);
+  --amber:       #ffaa00;
+  --amber-dim:   rgba(255,170,0,0.08);
+  --red:         #ff3344;
+  --red-dim:     rgba(255,51,68,0.08);
+  --font:        'Courier New', monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--black);color:var(--grey-light);font-family:var(--font);
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:12px;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 3px);
+}
+
+#header{
+  display:flex;align-items:center;gap:8px;padding:4px 12px;
+  background:var(--black-dark);border-bottom:1px solid var(--border);
+  flex-wrap:nowrap;flex-shrink:0;position:relative;z-index:10;
+}
+#header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent-line),transparent);pointer-events:none;}
+.brand-pre{font-size:13px;color:var(--accent);letter-spacing:2px;text-shadow:var(--accent-glow);font-weight:700;line-height:1.3}
+.brand-vsep{color:var(--dim);font-size:13px;line-height:1.3}
+.brand-name{font-size:13px;color:var(--accent);letter-spacing:2px;text-shadow:var(--accent-glow);line-height:1.3}
+.brand-name .sep{color:var(--dim)}
+.hsep{width:1px;height:24px;background:var(--border2);flex-shrink:0}
+
+.btn{
+  background:transparent;border:1px solid var(--accent);color:var(--accent);
+  padding:3px 10px;font-family:var(--font);font-size:11px;cursor:pointer;
+  transition:all 0.13s;letter-spacing:0.5px;white-space:nowrap;text-transform:lowercase;
+}
+.btn:hover:not(:disabled){background:var(--accent-dim);box-shadow:var(--accent-glow)}
+.btn:disabled{opacity:0.22;cursor:not-allowed}
+.btn.active{background:var(--accent-mid);box-shadow:var(--accent-glow)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.btn-red:hover:not(:disabled){background:var(--red-dim);box-shadow:0 0 8px rgba(255,51,68,0.32)}
+.btn-amber{border-color:var(--amber);color:var(--amber)}
+.btn-amber:hover:not(:disabled){background:var(--amber-dim);box-shadow:0 0 8px rgba(255,170,0,0.32)}
+
+#main{display:flex;flex:1;overflow:hidden;min-height:0}
+#leftArea{display:flex;flex-direction:column;flex:1;overflow:hidden;min-width:0}
+#splitter{width:5px;background:var(--border);cursor:col-resize;flex-shrink:0;transition:background 0.13s}
+#splitter:hover,#splitter.dragging{background:var(--accent-mid)}
+
+#vizArea{
+  flex:1;overflow:hidden;background:#020202;
+  display:flex;align-items:center;justify-content:center;
+  padding:6px;gap:4px;min-height:0;position:relative;
+}
+#vizArea.layout-1234{flex-direction:row;align-items:center}
+#vizArea.layout-12-34{flex-direction:column}
+.viz-row{display:flex;flex-direction:row;gap:4px;flex:1;min-height:0;align-items:center;justify-content:center;width:100%}
+#vizArea.layout-1-2-3-4{flex-direction:column;align-items:center}
+
+.viz-win{
+  background:#030303;border:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+  flex-shrink:0;
+}
+.viz-win.drag-over{border-color:var(--amber);box-shadow:0 0 0 1px rgba(255,170,0,0.3)}
+.viz-title{
+  font-size:8px;letter-spacing:2px;color:var(--dim);padding:2px 6px;
+  border-bottom:1px solid var(--border);text-transform:lowercase;flex-shrink:0;
+  display:flex;align-items:center;gap:4px;cursor:grab;user-select:none;background:rgba(0,0,0,0.5);
+  white-space:nowrap;
+}
+.viz-title:active{cursor:grabbing}
+.viz-title .vt-id{color:var(--accent3);opacity:0.6}
+.viz-canvas-wrap{flex:1;position:relative;min-height:0;overflow:hidden}
+.viz-canvas-wrap canvas{width:100%;height:100%;display:block}
+.viz-overlay{
+  position:absolute;bottom:3px;left:5px;right:5px;
+  font-size:8px;color:var(--accent);font-family:var(--font);
+  pointer-events:none;text-shadow:0 0 3px rgba(0,204,255,0.5);
+  letter-spacing:0.8px;white-space:nowrap;overflow:hidden;
+}
+
+#timelineArea{
+  flex-shrink:0;background:var(--black-dark);border-bottom:1px solid var(--border);
+  display:flex;flex-direction:column;gap:0;
+}
+#tlCanvasWrap{
+  position:relative;width:100%;height:80px;cursor:crosshair;
+  border-bottom:1px solid var(--border);
+}
+#tlCanvas{width:100%;height:100%;display:block;background:#020202}
+#tlPlayhead{
+  position:absolute;top:0;bottom:0;width:2px;background:var(--accent);
+  pointer-events:none;box-shadow:0 0 6px var(--accent),0 0 2px var(--accent);
+  transform:translateX(-1px);left:0;
+}
+#tlHover{
+  position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.2);
+  pointer-events:none;display:none;
+}
+#tlZoomBar{
+  height:10px;background:#050505;border-bottom:1px solid var(--border);
+  position:relative;cursor:ew-resize;
+}
+#tlZoomIndicator{
+  position:absolute;top:1px;height:8px;background:var(--accent-dim);
+  border:1px solid var(--accent-line);border-radius:1px;
+  min-width:10px;
+}
+#tlControls{
+  display:flex;align-items:center;gap:8px;padding:4px 8px;
+  flex-wrap:wrap;
+}
+#timeDisplay{font-size:11px;color:var(--accent);min-width:140px;font-variant-numeric:tabular-nums}
+.tl-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--dim);
+  padding:4px 12px;font-family:var(--font);font-size:13px;cursor:pointer;
+  transition:all 0.13s;white-space:nowrap;
+}
+.tl-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tl-btn:disabled{opacity:0.2;cursor:not-allowed}
+.tl-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+#zoomLabel{font-size:9px;color:var(--dim)}
+#zoomRange{accent-color:var(--accent);width:60px;cursor:pointer}
+#zoomVal{font-size:9px;color:var(--dim);min-width:28px}
+
+#rightCol{
+  width:270px;min-width:200px;max-width:440px;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--black-dark);border-left:1px solid var(--border);
+}
+#rightScroll{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+
+.panel{background:var(--black-dark);border-bottom:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.ptitle{
+  padding:4px 8px;font-size:9px;letter-spacing:2px;color:var(--dim);
+  text-transform:lowercase;flex-shrink:0;display:flex;align-items:center;gap:5px;
+  cursor:pointer;user-select:none;background:rgba(0,0,0,0.3);
+}
+.ptitle .pa{
+  color:var(--accent3);opacity:0.7;display:inline-block;
+  transition:transform 0.18s;font-size:10px;line-height:1;flex-shrink:0;
+}
+.panel.collapsed .ptitle .pa{transform:rotate(-90deg);opacity:0.4}
+.panel-body{padding:6px 8px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.panel.collapsed .panel-body{display:none}
+
+.s-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.s-label{font-size:9px;color:var(--dim);white-space:nowrap;min-width:80px}
+.s-val{font-size:9px;color:var(--accent);min-width:32px;text-align:right}
+.inp{
+  background:var(--black-mid);border:1px solid var(--border2);
+  color:var(--grey-light);font-family:var(--font);font-size:10px;
+  padding:2px 5px;flex:1;min-width:30px;transition:border-color 0.13s;
+}
+.inp:focus{outline:none;border-color:var(--accent)}
+input[type=range]{accent-color:var(--accent);cursor:pointer;flex:1;min-width:40px}
+input[type=color]{width:26px;height:18px;border:1px solid var(--border2);background:none;cursor:pointer;padding:1px}
+select.inp{cursor:pointer;width:auto;max-width:100%}
+select.inp{width:fit-content;min-width:60px;max-width:100%}
+.s-section{font-size:8px;color:var(--accent3);letter-spacing:1.5px;margin-top:4px;margin-bottom:1px;opacity:0.8}
+
+#tlLoopBar{
+  height:16px;background:#050505;border-bottom:1px solid var(--border);
+  position:relative;cursor:pointer;display:none;
+}
+#tlLoopBar.active{display:block}
+#tlLoopRegion{
+  position:absolute;top:0;height:100%;
+  background:var(--accent-dim);border-left:2px solid rgba(0,204,255,0.7);
+  border-right:2px solid rgba(0,204,255,0.7);
+  pointer-events:none;
+}
+#tlLoopStart,#tlLoopEnd{
+  position:absolute;top:0;height:100%;width:10px;
+  cursor:ew-resize;z-index:5;transform:translateX(-5px);
+}
+#tlLoopStart::after,#tlLoopEnd::after{
+  content:'';position:absolute;top:2px;bottom:2px;left:4px;width:2px;
+  background:var(--accent);border-radius:1px;
+}
+.tl-btn.loop-active{border-color:var(--accent);color:var(--accent);background:var(--accent-mid)}
+
+.order-row{
+  display:flex;align-items:center;gap:4px;font-size:8px;color:var(--dim);
+  padding:3px 4px;border:1px solid var(--border2);cursor:grab;user-select:none;
+  transition:border-color 0.1s,background 0.1s;
+}
+.order-row:active{cursor:grabbing}
+.order-row:hover{border-color:var(--amber);color:var(--amber)}
+.order-row.drag-over-row{border-color:var(--accent);background:var(--accent-dim)}
+.order-row .handle{color:var(--dim2);font-size:10px}
+
+#layoutBtns{display:flex;gap:3px;flex-wrap:wrap}
+.layout-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--dim);
+  padding:2px 7px;font-family:var(--font);font-size:9px;cursor:pointer;transition:all 0.13s;
+}
+.layout-btn:hover{border-color:var(--accent);color:var(--accent)}
+.layout-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+.gain-wrap{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.gain-label{font-size:9px;color:var(--dim);white-space:nowrap}
+.gain-slider{accent-color:var(--amber);width:60px;cursor:pointer;flex:1;min-width:40px}
+.gain-num{
+  width:46px;max-width:46px;flex:0 0 46px;background:var(--black-mid);border:1px solid var(--border2);
+  color:var(--amber);font-family:var(--font);font-size:9px;padding:1px 3px;
+  text-align:right;
+}
+.gain-num:focus{outline:none;border-color:var(--amber)}
+.gain-out{accent-color:var(--accent3)}
+.gain-num-out{color:var(--accent3)}
+
+#exportModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center}
+#exportModal.show{display:flex}
+#exportBox{
+  background:var(--black-dark);border:1px solid var(--accent);
+  padding:18px 22px;display:flex;flex-direction:column;gap:10px;min-width:280px;
+  box-shadow:0 0 32px rgba(0,204,255,0.12);
+}
+#exportBox h3{font-size:10px;color:var(--accent);letter-spacing:2px}
+
+#progressWrap{display:none;align-items:center;gap:8px;padding:3px 8px}
+#progressBar{flex:1;height:3px;background:var(--border2);border-radius:1px}
+#progressFill{height:100%;background:var(--accent);width:0%;transition:width 0.15s;border-radius:1px}
+#progressText{font-size:9px;color:var(--dim);white-space:nowrap}
+
+#audioHistoryWrap{position:relative;display:inline-block}
+#audioHistoryList{
+  display:none;position:absolute;top:100%;left:0;z-index:200;
+  background:var(--black-dark);border:1px solid var(--border2);min-width:220px;
+  max-height:200px;overflow-y:auto;
+}
+#audioHistoryList.show{display:block}
+.ah-item{
+  padding:4px 8px;font-size:9px;color:var(--dim);cursor:pointer;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ah-item:hover{color:var(--accent);background:var(--accent-dim)}
+.ah-item .ah-del{color:var(--red);margin-left:auto;opacity:0.5;flex-shrink:0}
+.ah-item .ah-del:hover{opacity:1}
+.ah-empty{padding:6px 8px;font-size:9px;color:var(--dim2);font-style:italic}
+
+.preset-item{
+  display:flex;align-items:center;gap:4px;padding:2px 4px;
+  border:1px solid var(--border2);font-size:8px;color:var(--dim);
+}
+.preset-item .pname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preset-item .p-load{color:var(--accent);cursor:pointer;font-size:9px}
+.preset-item .p-load:hover{text-decoration:underline}
+.preset-item .p-del{color:var(--red);cursor:pointer;font-size:9px;opacity:0.5}
+.preset-item .p-del:hover{opacity:1}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--black)}
+::-webkit-scrollbar-thumb{background:var(--dim2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent3)}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="brand-pre">SEM Brana</div>
+    <span class="brand-vsep">|</span>
+    <div class="brand-name">▶ multimeter <span class="sep">//</span> visualizer v2</div>
+  </div>
+  <div class="hsep"></div>
+  <span id="fileInfo" style="font-size:10px;color:var(--dim);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  <div id="progressWrap">
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <span id="progressText">rendering...</span>
+  </div>
+  <button class="btn" id="btnToggleUI" title="toggle panels" style="font-size:11px;padding:3px 8px;margin-left:auto">☰</button>
+  <button class="btn btn-amber" id="btnExport" disabled style="font-size:12px;padding:4px 14px;letter-spacing:1px">↓ export</button>
+</div>
+
+<div id="exportModal">
+  <div id="exportBox">
+    <h3>// export settings</h3>
+    <div class="s-row"><span class="s-label">format:</span>
+      <select class="inp" id="expFormat" style="max-width:90px">
+        <option value="webm">webm (universal)</option>
+        <option value="mp4">mp4 (if supported)</option>
+      </select>
+    </div>
+    <input type="hidden" id="expPosition" value="center">
+    <div class="s-row"><span class="s-label">fps:</span>
+      <select class="inp" id="expFps" style="max-width:70px">
+        <option value="30" selected>30</option>
+        <option value="60">60</option>
+        <option value="24">24</option>
+      </select>
+    </div>
+    <input type="hidden" id="expBitrate" value="8000">
+    <div style="font-size:8px;color:var(--dim)">output: 1080×1920 · black background · scaled visualizer</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn" id="expCancel">cancel</button>
+      <button class="btn btn-red" id="expStart">↓ start</button>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+
+  <div id="leftArea">
+
+    <div id="timelineArea">
+      <div id="tlCanvasWrap">
+        <canvas id="tlCanvas"></canvas>
+        <div id="tlPlayhead"></div>
+        <div id="tlHover"></div>
+      </div>
+      <div id="tlZoomBar"><div id="tlZoomIndicator"></div></div>
+      <div id="tlLoopBar">
+        <div id="tlLoopRegion"></div>
+        <div id="tlLoopStart"></div>
+        <div id="tlLoopEnd"></div>
+      </div>
+      <div id="tlControls">
+        <button class="tl-btn active" id="btnPlay" disabled title="play">▶</button>
+        <button class="tl-btn" id="btnPause" disabled title="pause">⏸</button>
+        <button class="tl-btn" id="btnStop" disabled title="stop">■</button>
+        <div class="hsep" style="height:18px"></div>
+        <span id="timeDisplay">00:00.000 / 00:00.000</span>
+        <div class="hsep" style="height:18px"></div>
+        <button class="tl-btn" id="btnLoop" title="loop" style="font-size:10px;padding:4px 10px">⟳ loop</button>
+        <div class="hsep" style="height:18px"></div>
+        <span id="zoomLabel">zoom:</span>
+        <input type="range" id="zoomRange" min="1" max="40" step="0.1" value="1">
+        <span id="zoomVal">1.0×</span>
+        <button class="tl-btn" id="btnZoomFit" style="font-size:10px;padding:4px 10px">fit</button>
+      </div>
+    </div>
+
+    <div id="vizArea" class="layout-12-34"></div>
+  </div>
+
+  <div id="splitter"></div>
+
+  <div id="rightCol">
+    <div id="rightScroll">
+
+      <div class="panel" id="pGeneral">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▾</span> general</div>
+        <div class="panel-body">
+
+          <div class="s-section">// audio file</div>
+          <div id="audioHistoryWrap">
+            <div style="display:flex;gap:4px;align-items:center">
+              <label style="border:1px dashed var(--dim);color:var(--dim);padding:2px 8px;font-family:var(--font);font-size:10px;cursor:pointer;transition:all 0.13s;text-transform:lowercase" id="fileLabel" for="fileInput">[ load audio / video ]</label>
+              <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
+              <button class="btn" id="btnSaveAudio" style="font-size:9px;padding:2px 6px" title="save to history" disabled>save</button>
+              <button class="btn" id="btnAudioHistory" style="font-size:9px;padding:2px 6px" title="audio history">☰</button>
+            </div>
+            <div id="audioHistoryList"></div>
+          </div>
+
+          <div class="s-section" style="margin-top:6px">// input gain</div>
+          <div class="gain-wrap">
+            <span class="gain-label">in:</span>
+            <input type="range" class="gain-slider" id="inputGain" min="-30" max="12" step="0.5" value="0">
+            <input type="number" class="inp gain-num" id="inputGainNum" value="0" min="-30" max="12" step="0.5" style="width:46px;max-width:46px;min-width:0;flex:0 0 46px">
+            <span class="gain-label" style="font-size:8px;color:var(--amber)">dB</span>
+          </div>
+          <div class="gain-wrap">
+            <span class="gain-label">out:</span>
+            <input type="range" class="gain-slider gain-out" id="outputGain" min="-30" max="12" step="0.5" value="0">
+            <input type="number" class="inp gain-num gain-num-out" id="outputGainNum" value="0" min="-30" max="12" step="0.5" style="width:46px;max-width:46px;min-width:0;flex:0 0 46px">
+            <span class="gain-label" style="font-size:8px;color:var(--accent3)">dB</span>
+          </div>
+
+          <div class="s-section" style="margin-top:6px">// layout</div>
+          <div id="layoutBtns">
+            <button class="layout-btn" data-layout="layout-1234">1×4</button>
+            <button class="layout-btn active" data-layout="layout-12-34">2×2</button>
+            <button class="layout-btn" data-layout="layout-1-2-3-4">4×1</button>
+          </div>
+
+          <div class="s-section" style="margin-top:6px">// visible modules</div>
+          <div class="s-row" style="gap:8px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vizShow_0" checked style="accent-color:var(--accent);width:13px;height:13px"> 01 vol</label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vizShow_1" checked style="accent-color:var(--accent);width:13px;height:13px"> 02 freq</label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vizShow_2" checked style="accent-color:var(--accent);width:13px;height:13px"> 03 stereo</label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vizShow_3" checked style="accent-color:var(--accent);width:13px;height:13px"> 04 spec</label>
+          </div>
+
+          <div class="s-section" style="margin-top:6px">// visualizer size (px)</div>
+          <div class="s-row" style="gap:6px;flex-wrap:wrap">
+            <span class="s-label" style="min-width:0">W:</span>
+            <input type="number" class="inp" id="vizSizeW" value="300" min="80" max="1200" step="10" style="max-width:60px;flex:1;min-width:50px">
+            <span class="s-label" style="min-width:0">H:</span>
+            <input type="number" class="inp" id="vizSizeH" value="300" min="80" max="1200" step="10" style="max-width:60px;flex:1;min-width:50px">
+          </div>
+
+          <div class="s-section" style="margin-top:6px">// order (drag to reorder)</div>
+          <div id="orderList" style="display:flex;flex-direction:column;gap:2px"></div>
+
+          <div class="s-section" style="margin-top:6px">// global palette</div>
+          <div class="s-row">
+            <span class="s-label">scheme:</span>
+            <select class="inp" id="globalScheme" style="flex:1">
+              <option value="multi">multi</option>
+              <option value="green">green</option>
+              <option value="amber">amber</option>
+              <option value="cyan">cyan</option>
+              <option value="plasma">plasma</option>
+              <option value="hot">hot</option>
+              <option value="rgb">RGB</option>
+              <option value="triad1">triad 1</option>
+              <option value="triad2">triad 2</option>
+            </select>
+          </div>
+          <button class="btn" id="btnApplyColors" style="font-size:9px;padding:2px 8px">apply to all</button>
+
+          <div class="s-section" style="margin-top:6px">// render zoom</div>
+          <div class="s-row">
+            <input type="range" id="renderZoom" min="0.25" max="2.0" step="0.05" value="1.0" style="flex:1">
+            <span class="s-val" id="renderZoom_v">100%</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="panel" id="pPreset">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▸</span> preset</div>
+        <div class="panel-body" style="display:none">
+          <div class="s-row" style="gap:4px">
+            <input type="text" class="inp" id="presetName" placeholder="preset name..." style="flex:1">
+            <button class="btn" id="btnSavePreset" style="font-size:9px;padding:2px 8px">save</button>
+          </div>
+          <div id="presetList" style="display:flex;flex-direction:column;gap:2px;margin-top:2px"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="pVol">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▾</span> <span style="color:var(--accent3)">01</span> · volume / loudness</div>
+        <div class="panel-body" id="volPanelBody">
+        </div>
+      </div>
+
+      <div class="panel" id="pSpec">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▾</span> <span style="color:var(--accent3)">02</span> · frequency</div>
+        <div class="panel-body" id="specPanelBody">
+        </div>
+      </div>
+
+      <div class="panel" id="pStereo">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▾</span> <span style="color:var(--accent3)">03</span> · stereo field</div>
+        <div class="panel-body" id="stereoPanelBody">
+        </div>
+      </div>
+
+      <div class="panel" id="pSpectro">
+        <div class="ptitle" onclick="togglePanel(this)"><span class="pa">▾</span> <span style="color:var(--accent3)">04</span> · spectrum</div>
+        <div class="panel-body" id="spectroPanelBody">
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+window.AV = {
+  audioCtx: null,
+  gainNodeIn: null,
+  gainNodeOut: null,
+  analyserL: null,
+  analyserR: null,
+  sourceNode: null,
+  audioBuffer: null,
+  isPlaying: false,
+  playStartCtxTime: 0,
+  playStartOffset: 0,
+  cursorPos: 0,
+  duration: 0,
+  waveData: [],
+  tlZoom: 1,
+  tlPanOffset: 0,
+  fdL: null, fdR: null, tdL: null, tdR: null,
+  loopEnabled: false,
+  loopStart: 0,
+  loopEnd: 0,
+};
+
+function initAudio() {
+  if (window.AV.audioCtx) return;
+  window.AV.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = window.AV.audioCtx;
+
+  window.AV.gainNodeIn  = ctx.createGain(); window.AV.gainNodeIn.gain.value  = 1.0;
+  window.AV.gainNodeOut = ctx.createGain(); window.AV.gainNodeOut.gain.value = 1.0;
+
+  const splitter = ctx.createChannelSplitter(2);
+  const merger   = ctx.createChannelMerger(2);
+
+  window.AV.analyserL = ctx.createAnalyser();
+  window.AV.analyserR = ctx.createAnalyser();
+  setFFTSize();
+  setSmoothingTime();
+
+  window.AV.gainNodeIn.connect(splitter);
+  splitter.connect(window.AV.analyserL, 0);
+  splitter.connect(window.AV.analyserR, 1);
+  window.AV.analyserL.connect(merger, 0, 0);
+  window.AV.analyserR.connect(merger, 0, 1);
+  merger.connect(window.AV.gainNodeOut);
+  window.AV.gainNodeOut.connect(ctx.destination);
+}
+
+function setFFTSize() {
+  if (!window.AV.analyserL) return;
+  const el = document.getElementById('spec_fft');
+  const v = el ? parseInt(el.value) : 2048;
+  window.AV.analyserL.fftSize = v;
+  window.AV.analyserR.fftSize = v;
+  if (window.VIZ_FREQUENCY) window.VIZ_FREQUENCY.resetPeaks();
+}
+
+function setSmoothingTime() {
+  if (!window.AV.analyserL) return;
+  const el = document.getElementById('spec_smooth');
+  const v = el ? parseFloat(el.value) : 0.75;
+  window.AV.analyserL.smoothingTimeConstant = v;
+  window.AV.analyserR.smoothingTimeConstant = v;
+}
+
+let audioHistory = JSON.parse(localStorage.getItem('avAudioHistory') || '[]');
+let _pendingFileName = null, _pendingDataUrl = null;
+
+document.getElementById('btnSaveAudio').addEventListener('click', () => {
+  if (_pendingFileName && _pendingDataUrl) {
+    saveToHistory(_pendingFileName, _pendingDataUrl);
+    _pendingFileName = null; _pendingDataUrl = null;
+    document.getElementById('btnSaveAudio').disabled = true;
+  }
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  loadFile(f);
+  e.target.value = '';
+});
+
+document.getElementById('btnAudioHistory').addEventListener('click', () => {
+  document.getElementById('audioHistoryList').classList.toggle('show');
+  renderAudioHistory();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#audioHistoryWrap')) {
+    document.getElementById('audioHistoryList').classList.remove('show');
+  }
+});
+
+function renderAudioHistory() {
+  const list = document.getElementById('audioHistoryList');
+  list.innerHTML = '';
+  if (!audioHistory.length) {
+    list.innerHTML = '<div class="ah-empty">no saved files</div>'; return;
+  }
+  audioHistory.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'ah-item';
+    div.innerHTML = `<span style="flex:1;overflow:hidden;text-overflow:ellipsis">${item.name}</span><span class="ah-del" data-idx="${idx}" title="remove">✕</span>`;
+    div.addEventListener('click', async e => {
+      if (e.target.classList.contains('ah-del')) {
+        e.stopPropagation();
+        audioHistory.splice(idx, 1);
+        localStorage.setItem('avAudioHistory', JSON.stringify(audioHistory));
+        renderAudioHistory(); return;
+      }
+      document.getElementById('audioHistoryList').classList.remove('show');
+      await loadFromDataUrl(item.dataUrl, item.name);
+    });
+    list.appendChild(div);
+  });
+}
+
+async function saveToHistory(name, dataUrl) {
+  audioHistory = audioHistory.filter(i => i.name !== name);
+  audioHistory.unshift({ name, dataUrl });
+  if (audioHistory.length > 10) audioHistory = audioHistory.slice(0, 10);
+  try { localStorage.setItem('avAudioHistory', JSON.stringify(audioHistory)); } catch(e) {}
+}
+
+function _dataUrlToArrayBuffer(dataUrl) {
+  // Decodifica diretta senza fetch: necessario quando il file HTML è aperto
+  // via file:// (Chrome/Firefox bloccano fetch() di data: URL da origin file://).
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) throw new Error('invalid data URL');
+  const meta = dataUrl.slice(5, comma); // strip "data:"
+  const payload = dataUrl.slice(comma + 1);
+  const isBase64 = /;base64/i.test(meta);
+  const binStr = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  const len = binStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function loadFromDataUrl(dataUrl, name) {
+  initAudio();
+  stopPlayback(true);
+  document.getElementById('fileInfo').textContent = name;
+  try {
+    let ab;
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+      ab = _dataUrlToArrayBuffer(dataUrl);
+    } else {
+      const res = await fetch(dataUrl);
+      ab = await res.arrayBuffer();
+    }
+    window.AV.audioBuffer = await window.AV.audioCtx.decodeAudioData(ab);
+    finishLoad();
+  } catch(e) { alert('Load error: ' + e.message); }
+}
+
+async function loadFile(file) {
+  initAudio();
+  stopPlayback(true);
+  document.getElementById('fileInfo').textContent = file.name;
+
+  _pendingFileName = null; _pendingDataUrl = null;
+  document.getElementById('btnSaveAudio').disabled = true;
+  try {
+    const reader = new FileReader();
+    reader.onload = () => {
+      _pendingFileName = file.name; _pendingDataUrl = reader.result;
+      document.getElementById('btnSaveAudio').disabled = false;
+    };
+    reader.readAsDataURL(file);
+  } catch(e) {}
+
+  let ab;
+  if (file.type.startsWith('video/')) {
+    ab = await extractAudioAB(file);
+  } else {
+    ab = await file.arrayBuffer();
+  }
+
+  try {
+    window.AV.audioBuffer = await window.AV.audioCtx.decodeAudioData(ab.slice ? ab.slice(0) : ab);
+  } catch(e) { alert('Audio decode error: ' + e.message); return; }
+
+  finishLoad();
+}
+
+function finishLoad() {
+  window.AV.duration = window.AV.audioBuffer.duration;
+  window.AV.cursorPos = 0;
+  window.AV.playStartOffset = 0;
+  buildWaveform();
+  enableControls(true);
+  updateTimeDisplay();
+  if (window.VIZ_VOLUME)      window.VIZ_VOLUME.onLoad();
+  if (window.VIZ_FREQUENCY)    window.VIZ_FREQUENCY.onLoad();
+  if (window.VIZ_STEREO)      window.VIZ_STEREO.onLoad();
+  if (window.VIZ_SPECTRUM) window.VIZ_SPECTRUM.onLoad();
+}
+
+async function extractAudioAB(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const aud = new Audio();
+    aud.src = url;
+    aud.oncanplaythrough = async () => {
+      try {
+        const dur = aud.duration || 300;
+        const sr = 44100, nCh = 2;
+        const off = new OfflineAudioContext(nCh, Math.ceil(dur * sr), sr);
+        const src = off.createMediaElementSource(aud);
+        src.connect(off.destination);
+        aud.currentTime = 0;
+        aud.play().catch(()=>{});
+        const rendered = await off.startRendering();
+        URL.revokeObjectURL(url);
+        resolve(encodeWAV(rendered));
+      } catch(e) { URL.revokeObjectURL(url); file.arrayBuffer().then(resolve); }
+    };
+    aud.onerror = () => { URL.revokeObjectURL(url); file.arrayBuffer().then(resolve); };
+  });
+}
+
+function encodeWAV(buf) {
+  const nCh=buf.numberOfChannels, sr=buf.sampleRate, len=buf.length;
+  const total=44+len*nCh*2;
+  const ab=new ArrayBuffer(total); const dv=new DataView(ab);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF'); dv.setUint32(4,total-8,true);
+  ws(8,'WAVE'); ws(12,'fmt ');
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true);
+  dv.setUint16(22,nCh,true); dv.setUint32(24,sr,true);
+  dv.setUint32(28,sr*nCh*2,true); dv.setUint16(32,nCh*2,true); dv.setUint16(34,16,true);
+  ws(36,'data'); dv.setUint32(40,len*nCh*2,true);
+  let o=44;
+  for(let i=0;i<len;i++) for(let c=0;c<nCh;c++){
+    const s=Math.max(-1,Math.min(1,buf.getChannelData(c)[i]));
+    dv.setInt16(o,s<0?s*32768:s*32767,true); o+=2;
+  }
+  return ab;
+}
+
+function buildWaveform() {
+  if (!window.AV.audioBuffer) return;
+  const ch = window.AV.audioBuffer.getChannelData(0);
+  const BINS = 2000;
+  const step = Math.max(1, Math.floor(ch.length / BINS));
+  window.AV.waveData = [];
+  for (let i = 0; i < BINS; i++) {
+    let mx = 0;
+    for (let j = 0; j < step; j++) { const v=Math.abs(ch[i*step+j]||0); if(v>mx) mx=v; }
+    window.AV.waveData.push(mx);
+  }
+}
+
+function enableControls(on) {
+  ['btnPlay','btnPause','btnStop','btnExport'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = !on;
+  });
+}
+
+function startPlayback() {
+  const av = window.AV;
+  if (!av.audioBuffer || !av.audioCtx) return;
+  if (av.audioCtx.state === 'suspended') av.audioCtx.resume();
+
+  if (av.isPlaying) return;
+
+  _killSource();
+
+  let offset = Math.max(0, Math.min(av.duration - 0.001, av.cursorPos));
+  if (av.loopEnabled && av.loopStart < av.loopEnd) {
+    if (offset < av.loopStart || offset >= av.loopEnd) {
+      offset = av.loopStart;
+      av.cursorPos = offset;
+    }
+  }
+
+  const src = av.audioCtx.createBufferSource();
+  src.buffer = av.audioBuffer;
+  src.connect(av.gainNodeIn);
+  av.playStartCtxTime = av.audioCtx.currentTime;
+  av.playStartOffset  = offset;
+  src.start(0, offset);
+  av.sourceNode = src;
+  av.isPlaying  = true;
+
+  src.onended = () => {
+    if (av.sourceNode === src && av.isPlaying) {
+      av.isPlaying = false;
+      av.cursorPos = 0;
+      av.playStartOffset = 0;
+      updatePlayButtons();
+    }
+  };
+  updatePlayButtons();
+}
+
+function pausePlayback() {
+  const av = window.AV;
+  if (!av.isPlaying) return;
+  if (av.loopEnabled) { stopPlayback(true); return; }
+  av.cursorPos = getCurrentTime();
+  _killSource();
+  av.isPlaying = false;
+  updatePlayButtons();
+}
+
+function stopPlayback(reset) {
+  const av = window.AV;
+  _killSource();
+  av.isPlaying = false;
+  if (reset !== false) { av.cursorPos = 0; av.playStartOffset = 0; }
+  updatePlayButtons();
+}
+
+function _killSource() {
+  const av = window.AV;
+  if (av.sourceNode) {
+    try { av.sourceNode.onended = null; av.sourceNode.stop(0); av.sourceNode.disconnect(); } catch(e){}
+    av.sourceNode = null;
+  }
+}
+
+function getCurrentTime() {
+  const av = window.AV;
+  if (!av.audioCtx || !av.isPlaying) return av.cursorPos;
+  const elapsed = av.audioCtx.currentTime - av.playStartCtxTime;
+  return Math.min(av.playStartOffset + elapsed, av.duration);
+}
+window.AV.getCurrentTime = getCurrentTime;
+
+function seekTo(t) {
+  const av = window.AV;
+  t = Math.max(0, Math.min(av.duration, t));
+  const wasPlaying = av.isPlaying;
+  if (wasPlaying) { _killSource(); av.isPlaying = false; }
+  av.cursorPos = t;
+  if (wasPlaying) { av.isPlaying = false; startPlayback(); }
+  else updateTimeDisplay();
+}
+
+function updatePlayButtons() {
+  const av = window.AV;
+  const btnPlay = document.getElementById('btnPlay');
+  if (btnPlay) btnPlay.classList.toggle('active', av.isPlaying);
+}
+
+function updateTimeDisplay() {
+  const cur = getCurrentTime();
+  const d   = window.AV.duration;
+  document.getElementById('timeDisplay').textContent = `${fmt(cur)} / ${fmt(d)}`;
+}
+
+function fmt(s) {
+  if (!isFinite(s)||s<0) return '00:00.000';
+  const m=Math.floor(s/60);
+  const ss=(s%60).toFixed(3).padStart(6,'0');
+  return `${String(m).padStart(2,'0')}:${ss}`;
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (window.AV.audioCtx && window.AV.audioCtx.state === 'suspended') window.AV.audioCtx.resume();
+  startPlayback();
+});
+document.getElementById('btnPause').addEventListener('click', pausePlayback);
+document.getElementById('btnStop').addEventListener('click', () => stopPlayback(true));
+
+function bindGainPair(sliderId, numId, nodeGetter, colorClass) {
+  const slider = document.getElementById(sliderId);
+  const num    = document.getElementById(numId);
+  function applyVal(db) {
+    const v = parseFloat(db);
+    if (!isFinite(v)) return;
+    slider.value = v;
+    num.value = v.toFixed(1);
+    const node = nodeGetter();
+    if (node) node.gain.value = Math.pow(10, v/20);
+  }
+  slider.addEventListener('input', () => applyVal(slider.value));
+  num.addEventListener('change', () => applyVal(num.value));
+  num.addEventListener('keydown', e => { if (e.key==='Enter') applyVal(num.value); });
+}
+bindGainPair('inputGain',  'inputGainNum',  () => window.AV.gainNodeIn,  'amber');
+bindGainPair('outputGain', 'outputGainNum', () => window.AV.gainNodeOut, 'green3');
+
+const tlCanvas   = document.getElementById('tlCanvas');
+const tlCtx      = tlCanvas.getContext('2d');
+const tlPlayhead = document.getElementById('tlPlayhead');
+const tlHover    = document.getElementById('tlHover');
+let tlSeekActive = false;
+let tlPanActive  = false;
+let tlPanStartX  = 0;
+let tlPanStartOff = 0;
+
+function resizeTL() {
+  tlCanvas.width  = tlCanvas.offsetWidth  || tlCanvas.parentElement.offsetWidth;
+  tlCanvas.height = tlCanvas.offsetHeight || 80;
+}
+
+function drawTimeline() {
+  const W = tlCanvas.width, H = tlCanvas.height;
+  if (!W || !H) return;
+  const av = window.AV;
+  const accentHex = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00ccff';
+  tlCtx.fillStyle = '#020202'; tlCtx.fillRect(0,0,W,H);
+
+  if (!av.duration) {
+    tlCtx.fillStyle = '#1a1a1a'; tlCtx.font='10px Courier New';
+    tlCtx.fillText('// load an audio or video file', 12, H/2+4); return;
+  }
+
+  const viewDur = av.duration / av.tlZoom;
+  av.tlPanOffset = Math.max(0, Math.min(av.duration - viewDur, av.tlPanOffset));
+  const viewEnd  = av.tlPanOffset + viewDur;
+
+  if (av.waveData.length) {
+    tlCtx.strokeStyle = accentHex+'59'; tlCtx.lineWidth = 1;
+    tlCtx.beginPath();
+    for (let x = 0; x < W; x++) {
+      const t   = av.tlPanOffset + (x/W)*viewDur;
+      const idx = Math.min(av.waveData.length-1, Math.floor((t/av.duration)*av.waveData.length));
+      const v   = (av.waveData[idx]||0) * (H/2 - 3);
+      tlCtx.moveTo(x, H/2-v); tlCtx.lineTo(x, H/2+v);
+    }
+    tlCtx.stroke();
+  }
+
+  const step = niceStep(viewDur / 8);
+  const t0   = Math.ceil(av.tlPanOffset / step) * step;
+  tlCtx.font = '7px Courier New';
+  for (let t = t0; t <= viewEnd + step; t += step) {
+    const x = ((t - av.tlPanOffset) / viewDur) * W;
+    if (x < 0 || x > W) continue;
+    tlCtx.strokeStyle = '#181818'; tlCtx.lineWidth = 1;
+    tlCtx.beginPath(); tlCtx.moveTo(x,0); tlCtx.lineTo(x,H); tlCtx.stroke();
+    tlCtx.fillStyle = '#2a2a2a'; tlCtx.fillText(fmt(t), x+2, H-2);
+  }
+
+  const cur = getCurrentTime();
+  const ph  = ((cur - av.tlPanOffset) / viewDur) * W;
+  tlPlayhead.style.left = Math.round(ph) + 'px';
+  tlPlayhead.style.display = (ph >= 0 && ph <= W) ? 'block' : 'none';
+
+  if (av.loopEnabled && av.loopStart < av.loopEnd && av.duration) {
+    const lsx = ((av.loopStart - av.tlPanOffset) / viewDur) * W;
+    const lex = ((av.loopEnd   - av.tlPanOffset) / viewDur) * W;
+    const lsxC = Math.max(0, lsx), lexC = Math.min(W, lex);
+    if (lexC > lsxC) {
+      tlCtx.fillStyle = accentHex+'0f';
+      tlCtx.fillRect(lsxC, 0, lexC - lsxC, H);
+      tlCtx.strokeStyle = accentHex+'73';
+      tlCtx.lineWidth = 1;
+      if (lsx >= 0 && lsx <= W) { tlCtx.beginPath(); tlCtx.moveTo(lsx, 0); tlCtx.lineTo(lsx, H); tlCtx.stroke(); }
+      if (lex >= 0 && lex <= W) { tlCtx.beginPath(); tlCtx.moveTo(lex, 0); tlCtx.lineTo(lex, H); tlCtx.stroke(); }
+    }
+  }
+
+  if (av.isPlaying) {
+    const margin = viewDur * 0.1;
+    if (cur > viewEnd - margin && av.tlZoom > 1) {
+      av.tlPanOffset = cur - viewDur * 0.1;
+    }
+  }
+
+  updateZoomBar();
+  if (window._updateLoopBar) window._updateLoopBar();
+}
+
+function updateZoomBar() {
+  const av = window.AV;
+  if (!av.duration) return;
+  const ind = document.getElementById('tlZoomIndicator');
+  const bar = document.getElementById('tlZoomBar');
+  const W   = bar.offsetWidth;
+  const viewDur = av.duration / av.tlZoom;
+  const left  = (av.tlPanOffset / av.duration) * W;
+  const width = Math.max(8, (viewDur / av.duration) * W);
+  ind.style.left  = left + 'px';
+  ind.style.width = width + 'px';
+}
+
+function niceStep(approx) {
+  const nice=[0.05,0.1,0.25,0.5,1,2,5,10,15,30,60,120,300,600];
+  return nice.find(v=>v>=approx) || nice[nice.length-1];
+}
+
+const tlWrap = document.getElementById('tlCanvasWrap');
+
+tlWrap.addEventListener('mousedown', e => {
+  if (!window.AV.duration) return;
+  e.preventDefault();
+  if (e.button === 2) {
+    tlPanActive  = true;
+    tlPanStartX  = e.clientX;
+    tlPanStartOff = window.AV.tlPanOffset;
+  } else {
+    tlSeekActive = true;
+    seekFromMouse(e);
+  }
+});
+
+tlWrap.addEventListener('mousemove', e => {
+  if (!window.AV.duration) return;
+  const rect = tlWrap.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  tlHover.style.display = 'block';
+  tlHover.style.left = x + 'px';
+});
+tlWrap.addEventListener('mouseleave', () => { tlHover.style.display = 'none'; });
+
+document.addEventListener('mousemove', e => {
+  if (tlSeekActive) seekFromMouse(e);
+  if (tlPanActive) {
+    const rect = tlWrap.getBoundingClientRect();
+    const dx = e.clientX - tlPanStartX;
+    const av = window.AV;
+    const viewDur = av.duration / av.tlZoom;
+    const dT = -(dx / rect.width) * viewDur;
+    av.tlPanOffset = Math.max(0, Math.min(av.duration - viewDur, tlPanStartOff + dT));
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  tlSeekActive = false;
+  tlPanActive  = false;
+});
+
+tlWrap.addEventListener('contextmenu', e => e.preventDefault());
+
+tlWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const av = window.AV;
+  if (!av.duration) return;
+  const rect   = tlWrap.getBoundingClientRect();
+  const xFrac  = (e.clientX - rect.left) / rect.width;
+  const tAtMouse = av.tlPanOffset + xFrac * (av.duration / av.tlZoom);
+
+  if (e.ctrlKey || e.metaKey) {
+    const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+    av.tlZoom = Math.max(1, Math.min(200, av.tlZoom * factor));
+    document.getElementById('zoomRange').value = Math.min(40, av.tlZoom);
+    document.getElementById('zoomVal').textContent = av.tlZoom.toFixed(1)+'×';
+  } else {
+    const viewDur = av.duration / av.tlZoom;
+    av.tlPanOffset += (e.deltaY > 0 ? 1 : -1) * viewDur * 0.15;
+  }
+  const newViewDur = av.duration / av.tlZoom;
+  av.tlPanOffset = tAtMouse - xFrac * newViewDur;
+  av.tlPanOffset = Math.max(0, Math.min(av.duration - newViewDur, av.tlPanOffset));
+}, { passive: false });
+
+function seekFromMouse(e) {
+  if (!window.AV.duration) return;
+  const rect   = tlWrap.getBoundingClientRect();
+  const x      = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const frac   = x / rect.width;
+  const av     = window.AV;
+  const viewDur= av.duration / av.tlZoom;
+  seekTo(av.tlPanOffset + frac * viewDur);
+}
+
+document.getElementById('zoomRange').addEventListener('input', e => {
+  const av   = window.AV;
+  const oldZ = av.tlZoom;
+  av.tlZoom  = parseFloat(e.target.value);
+  document.getElementById('zoomVal').textContent = av.tlZoom.toFixed(1)+'×';
+  if (av.duration) {
+    const viewDur = av.duration / av.tlZoom;
+    av.tlPanOffset = av.cursorPos - viewDur * 0.4;
+    av.tlPanOffset = Math.max(0, Math.min(av.duration - viewDur, av.tlPanOffset));
+  }
+});
+
+document.getElementById('btnZoomFit').addEventListener('click', () => {
+  window.AV.tlZoom = 1;
+  window.AV.tlPanOffset = 0;
+  document.getElementById('zoomRange').value = 1;
+  document.getElementById('zoomVal').textContent = '1.0×';
+});
+
+(()=>{
+  const bar = document.getElementById('tlZoomBar');
+  const ind = document.getElementById('tlZoomIndicator');
+  let drag  = false, startX = 0, startOff = 0;
+  bar.addEventListener('mousedown', e => {
+    e.preventDefault(); drag = true;
+    startX = e.clientX; startOff = window.AV.tlPanOffset;
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag || !window.AV.duration) return;
+    const W = bar.offsetWidth;
+    const dx = e.clientX - startX;
+    const av = window.AV;
+    const dT = (dx / W) * av.duration;
+    const viewDur = av.duration / av.tlZoom;
+    av.tlPanOffset = Math.max(0, Math.min(av.duration - viewDur, startOff + dT));
+  });
+  document.addEventListener('mouseup', () => { drag = false; });
+})();
+
+(()=>{
+  const btnLoop     = document.getElementById('btnLoop');
+  const loopBar     = document.getElementById('tlLoopBar');
+  const loopRegion  = document.getElementById('tlLoopRegion');
+  const loopStartEl = document.getElementById('tlLoopStart');
+  const loopEndEl   = document.getElementById('tlLoopEnd');
+
+  let loopDrag = null;
+  let loopDragStartX = 0;
+  let loopDragStartVal = 0;
+
+  btnLoop.addEventListener('click', () => {
+    const av = window.AV;
+    av.loopEnabled = !av.loopEnabled;
+    btnLoop.classList.toggle('loop-active', av.loopEnabled);
+    loopBar.classList.toggle('active', av.loopEnabled);
+    if (av.loopEnabled && av.loopStart === av.loopEnd) {
+      const d = av.duration || 60;
+      av.loopStart = d * 0.25;
+      av.loopEnd   = d * 0.75;
+    }
+    updateLoopBar();
+  });
+
+  function updateLoopBar() {
+    const av = window.AV;
+    if (!av.loopEnabled || !av.duration) return;
+    const W = loopBar.offsetWidth;
+    const ls = (av.loopStart / av.duration) * W;
+    const le = (av.loopEnd   / av.duration) * W;
+    loopRegion.style.left  = ls + 'px';
+    loopRegion.style.width = Math.max(2, le - ls) + 'px';
+    loopStartEl.style.left = ls + 'px';
+    loopEndEl.style.left   = le + 'px';
+  }
+
+  function posToTime(clientX) {
+    const rect = loopBar.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return frac * (window.AV.duration || 1);
+  }
+
+  loopStartEl.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    loopDrag = 'start';
+    loopDragStartX = e.clientX;
+    loopDragStartVal = window.AV.loopStart;
+    e.preventDefault();
+  });
+
+  loopEndEl.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    loopDrag = 'end';
+    loopDragStartX = e.clientX;
+    loopDragStartVal = window.AV.loopEnd;
+    e.preventDefault();
+  });
+
+  loopBar.addEventListener('mousedown', e => {
+    if (e.target === loopStartEl || e.target === loopEndEl) return;
+    const t = posToTime(e.clientX);
+    seekTo(t);
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!loopDrag) return;
+    const av = window.AV;
+    const t = posToTime(e.clientX);
+    if (loopDrag === 'start') {
+      av.loopStart = Math.max(0, Math.min(av.loopEnd - 0.1, t));
+    } else if (loopDrag === 'end') {
+      av.loopEnd = Math.min(av.duration, Math.max(av.loopStart + 0.1, t));
+    }
+    updateLoopBar();
+  });
+
+  document.addEventListener('mouseup', () => { loopDrag = null; });
+
+  window._updateLoopBar = updateLoopBar;
+})();
+
+let currentLayout = 'layout-12-34';
+let vizOrder = [0, 1, 2, 3];
+
+const vizDefs = [
+  { id:0, label:'01 · volume',    short:'vol',     panelBodyId:'volPanelBody',     reg:'VIZ_VOLUME' },
+  { id:1, label:'02 · frequency', short:'spec',    panelBodyId:'specPanelBody',    reg:'VIZ_FREQUENCY' },
+  { id:2, label:'03 · stereo',    short:'stereo',  panelBodyId:'stereoPanelBody',  reg:'VIZ_STEREO' },
+  { id:3, label:'04 · spectrum',  short:'spectro', panelBodyId:'spectroPanelBody', reg:'VIZ_SPECTRUM' },
+];
+
+function getVisibleOrder() {
+  return vizOrder.filter(vi => {
+    const cb = document.getElementById('vizShow_' + vi);
+    return !cb || cb.checked;
+  });
+}
+
+function buildVizLayout() {
+  const area = document.getElementById('vizArea');
+  area.className = currentLayout;
+  area.innerHTML = '';
+
+  const visible = getVisibleOrder();
+
+  if (currentLayout === 'layout-12-34') {
+    const half = Math.ceil(visible.length / 2);
+    const r1 = document.createElement('div'); r1.className = 'viz-row';
+    const r2 = document.createElement('div'); r2.className = 'viz-row';
+    visible.forEach((vi,i) => (i < half ? r1 : r2).appendChild(buildVizWin(vi)));
+    area.appendChild(r1);
+    if (visible.length > half) area.appendChild(r2);
+  } else {
+    visible.forEach(vi => area.appendChild(buildVizWin(vi)));
+  }
+  enforceSquares();
+  [window.VIZ_VOLUME, window.VIZ_FREQUENCY, window.VIZ_STEREO, window.VIZ_SPECTRUM]
+    .forEach(v => v && v.rebindDrag && v.rebindDrag());
+  buildOrderList();
+}
+
+function enforceSquares() {
+  const elW = document.getElementById('vizSizeW');
+  const elH = document.getElementById('vizSizeH');
+  const userW = elW ? Math.max(80, parseInt(elW.value)||270) : 270;
+  const userH = elH ? Math.max(80, parseInt(elH.value)||270) : 270;
+
+  const area = document.getElementById('vizArea');
+  const aw = area.clientWidth  - 14;
+  const ah = area.clientHeight - 14;
+
+  const visCount = Math.max(1, getVisibleOrder().length);
+  let cols=1, rows=1;
+  if      (currentLayout==='layout-1234')   { cols=visCount; rows=1; }
+  else if (currentLayout==='layout-12-34')  { cols=Math.ceil(visCount/2); rows=visCount<=2?1:2; }
+  else                                       { cols=1; rows=visCount; }
+
+  const maxFitW = Math.floor((aw - (cols-1)*4) / cols);
+  const maxFitH = Math.floor((ah - (rows-1)*4) / rows);
+
+  const renderZoom = parseFloat((document.getElementById('renderZoom')||{value:'1'}).value) || 1;
+  const szW = Math.max(80, Math.min(Math.round(userW * renderZoom), maxFitW));
+  const szH = Math.max(80, Math.min(Math.round(userH * renderZoom), maxFitH));
+
+  const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt((szW*szH)/(270*270))));
+  document.documentElement.style.setProperty('--viz-font-scale', fScale);
+
+  document.querySelectorAll('.viz-win').forEach(w => {
+    w.style.width  = szW + 'px';
+    w.style.height = szH + 'px';
+    w.style.flex   = 'none';
+    const c = w.querySelector('canvas');
+    if (c) { c.width = szW-2; c.height = szH-18; }
+  });
+}
+
+let dragSrc = null;
+
+function buildVizWin(vi) {
+  const def = vizDefs[vi];
+  const win = document.createElement('div');
+  win.className = 'viz-win';
+  win.dataset.vizid = vi;
+
+  const title = document.createElement('div');
+  title.className = 'viz-title';
+  title.draggable = true;
+  title.dataset.vizid = vi;
+  title.innerHTML = `<span class="vt-id">▸</span>${def.label}`;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'viz-canvas-wrap';
+  const canvas = document.createElement('canvas');
+  canvas.id = 'vc'+vi;
+  const overlay = document.createElement('div');
+  overlay.className = 'viz-overlay';
+  overlay.id = 'vo'+vi;
+
+  wrap.appendChild(canvas);
+  wrap.appendChild(overlay);
+  win.appendChild(title);
+  win.appendChild(wrap);
+
+  title.addEventListener('dragstart', e => { dragSrc = vi; e.dataTransfer.effectAllowed='move'; });
+  win.addEventListener('dragover',  e => { e.preventDefault(); win.classList.add('drag-over'); });
+  win.addEventListener('dragleave', () => win.classList.remove('drag-over'));
+  win.addEventListener('drop', e => {
+    e.preventDefault(); win.classList.remove('drag-over');
+    if (dragSrc === vi) return;
+    const si = vizOrder.indexOf(dragSrc), di = vizOrder.indexOf(vi);
+    [vizOrder[si], vizOrder[di]] = [vizOrder[di], vizOrder[si]];
+    buildVizLayout();
+  });
+
+  return win;
+}
+
+function buildOrderList() {
+  const ol = document.getElementById('orderList');
+  ol.innerHTML = '';
+  vizOrder.forEach((vi, pos) => {
+    const d = vizDefs[vi];
+    const row = document.createElement('div');
+    row.className = 'order-row';
+    row.draggable = true;
+    row.dataset.vizid = vi;
+    row.innerHTML = `<span class="handle">⠿</span><span style="color:var(--accent3)">${pos+1}</span> ${d.label}`;
+
+    row.addEventListener('dragstart', e => { dragSrc = vi; e.dataTransfer.effectAllowed='move'; row.style.opacity='0.5'; });
+    row.addEventListener('dragend',   () => { row.style.opacity=''; ol.querySelectorAll('.order-row').forEach(r=>r.classList.remove('drag-over-row')); });
+    row.addEventListener('dragover',  e => { e.preventDefault(); row.classList.add('drag-over-row'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over-row'));
+    row.addEventListener('drop', e => {
+      e.preventDefault(); row.classList.remove('drag-over-row');
+      if (dragSrc === vi) return;
+      const si = vizOrder.indexOf(dragSrc), di = vizOrder.indexOf(vi);
+      [vizOrder[si], vizOrder[di]] = [vizOrder[di], vizOrder[si]];
+      buildVizLayout();
+    });
+    ol.appendChild(row);
+  });
+}
+
+document.getElementById('layoutBtns').addEventListener('click', e => {
+  const btn = e.target.closest('.layout-btn'); if (!btn) return;
+  document.querySelectorAll('.layout-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentLayout = btn.dataset.layout;
+  buildVizLayout();
+});
+
+const ro = new ResizeObserver(() => { enforceSquares(); resizeTL(); });
+ro.observe(document.getElementById('vizArea'));
+ro.observe(document.getElementById('tlCanvasWrap'));
+
+function togglePanel(ptitle) {
+  const panel = ptitle.parentElement;
+  panel.classList.toggle('collapsed');
+  const pb = panel.querySelector('.panel-body');
+  if (pb) pb.style.display = panel.classList.contains('collapsed') ? 'none' : 'flex';
+  ptitle.querySelector('.pa').textContent = panel.classList.contains('collapsed') ? '▸' : '▾';
+}
+
+const SCHEMES = {
+  multi:  {spec_col_a:'#0055ff',spec_col_b:'#ff3344',vol_ok:'#00ccff',vol_ok2:'#aaff44',vol_ok3:'#ff6688',vol_warn:'#ffaa00',vol_clip:'#ff3344',vol_targetColor:'#ffaa00',vol_zeroColor:'#808080',stereo_col_mid:'#ff88ff',stereo_col_side:'#44ffdd',spectro_c_low:'#0033ff',spectro_c_mid:'#ff4400',spectro_c_high:'#ffff00',_accent:'#00ccff'},
+  green:  {spec_col_a:'#003300',spec_col_b:'#00ff88',vol_ok:'#00ff88',vol_ok2:'#66ff44',vol_ok3:'#ccff00',vol_warn:'#88ff00',vol_clip:'#ffff44',vol_targetColor:'#88ff00',vol_zeroColor:'#808080',stereo_col_mid:'#00ff88',stereo_col_side:'#88ff44',spectro_c_low:'#001100',spectro_c_mid:'#00aa44',spectro_c_high:'#00ff88',_accent:'#00ff88'},
+  amber:  {spec_col_a:'#332200',spec_col_b:'#ffcc00',vol_ok:'#ffdd00',vol_ok2:'#ffff44',vol_ok3:'#ffaa00',vol_warn:'#ff9900',vol_clip:'#ff0000',vol_targetColor:'#ffbb00',vol_zeroColor:'#808080',stereo_col_mid:'#ffdd00',stereo_col_side:'#ffaa00',spectro_c_low:'#111100',spectro_c_mid:'#997700',spectro_c_high:'#ffff00',_accent:'#ffdd00'},
+  cyan:   {spec_col_a:'#002244',spec_col_b:'#88eeff',vol_ok:'#00aaff',vol_ok2:'#44ddff',vol_ok3:'#00ffcc',vol_warn:'#ffaa00',vol_clip:'#ff3344',vol_targetColor:'#ffaa00',vol_zeroColor:'#808080',stereo_col_mid:'#00ccff',stereo_col_side:'#ff4400',spectro_c_low:'#000022',spectro_c_mid:'#004488',spectro_c_high:'#00ccff',_accent:'#00aaff'},
+  plasma: {spec_col_a:'#330066',spec_col_b:'#ffee00',vol_ok:'#cc00ff',vol_ok2:'#ff44cc',vol_ok3:'#ffee00',vol_warn:'#ff8800',vol_clip:'#ff0000',vol_targetColor:'#ff8800',vol_zeroColor:'#808080',stereo_col_mid:'#ff00aa',stereo_col_side:'#ffee00',spectro_c_low:'#0d0221',spectro_c_mid:'#cc00ff',spectro_c_high:'#ffee00',_accent:'#cc00ff'},
+  hot:    {spec_col_a:'#110000',spec_col_b:'#ff4400',vol_ok:'#ff2200',vol_ok2:'#ff5500',vol_ok3:'#ff8800',vol_warn:'#ffaa00',vol_clip:'#ff0000',vol_targetColor:'#ff4400',vol_zeroColor:'#808080',stereo_col_mid:'#ff1100',stereo_col_side:'#ff5500',spectro_c_low:'#000000',spectro_c_mid:'#bb0000',spectro_c_high:'#ff3300',_accent:'#ff1100'},
+  rgb:    {spec_col_a:'#110011',spec_col_b:'#ff0033',vol_ok:'#00dd55',vol_ok2:'#0088ff',vol_ok3:'#ff2244',vol_warn:'#ffaa00',vol_clip:'#ff0000',vol_targetColor:'#ff2244',vol_zeroColor:'#808080',stereo_col_mid:'#00dd55',stereo_col_side:'#0088ff',spectro_c_low:'#000011',spectro_c_mid:'#0000cc',spectro_c_high:'#ff0000',_accent:'#ff2244'},
+  triad1: {spec_col_a:'#110022',spec_col_b:'#ffee00',vol_ok:'#ffee00',vol_ok2:'#ff2200',vol_ok3:'#0055ff',vol_warn:'#ff8800',vol_clip:'#ff0000',vol_targetColor:'#ff2200',vol_zeroColor:'#808080',stereo_col_mid:'#ffee00',stereo_col_side:'#0055ff',spectro_c_low:'#000022',spectro_c_mid:'#cc0000',spectro_c_high:'#ffee00',_accent:'#ffee00'},
+  triad2: {spec_col_a:'#1a0033',spec_col_b:'#00ff66',vol_ok:'#00ff66',vol_ok2:'#ff6600',vol_ok3:'#aa00ff',vol_warn:'#ff8800',vol_clip:'#ff0000',vol_targetColor:'#ff6600',vol_zeroColor:'#808080',stereo_col_mid:'#00ff66',stereo_col_side:'#aa00ff',spectro_c_low:'#0d0022',spectro_c_mid:'#7700cc',spectro_c_high:'#00ff66',_accent:'#00ff66'},
+};
+
+function applyAccent(hex) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const root = document.documentElement;
+  root.style.setProperty('--accent',      hex);
+  root.style.setProperty('--accent2',     `rgb(${Math.round(r*0.8)},${Math.round(g*0.8)},${Math.round(b*0.8)})`);
+  root.style.setProperty('--accent3',     `rgb(${Math.round(r*0.6)},${Math.round(g*0.6)},${Math.round(b*0.6)})`);
+  root.style.setProperty('--accent-dim',  `rgba(${r},${g},${b},0.08)`);
+  root.style.setProperty('--accent-mid',  `rgba(${r},${g},${b},0.18)`);
+  root.style.setProperty('--accent-glow', `0 0 8px rgba(${r},${g},${b},0.35)`);
+  root.style.setProperty('--accent-line', `rgba(${r},${g},${b},0.10)`);
+}
+
+document.getElementById('btnApplyColors').addEventListener('click', () => {
+  const s = SCHEMES[document.getElementById('globalScheme').value]; if (!s) return;
+  Object.entries(s).forEach(([id,val]) => {
+    if (id.startsWith('_')) return;
+    const el=document.getElementById(id); if(el) el.value=val;
+  });
+  if (s._accent) applyAccent(s._accent);
+  if (window.VIZ_STEREO)      window.VIZ_STEREO.resetTrail();
+  if (window.VIZ_FREQUENCY)    window.VIZ_FREQUENCY.resetPeaks();
+});
+
+let presets = JSON.parse(localStorage.getItem('avPresets') || '[]');
+
+function captureState() {
+  const ids = ['vol_mode','vol_peakhold','vol_threshold','vol_target','vol_ok','vol_ok2','vol_ok3','vol_warn','vol_clip',
+    'vol_targetColor','vol_zeroColor',
+    'vol_scaleMin','vol_scaleMax','vol_offsetY','vol_response',
+    'vol_labelColor','vol_show_clip','vol_show_target','vol_show_zero','vol_overline_enable',
+    'vol_show_avg_val','vol_show_peak_val',
+    'vol_avgtime','vol_avgtime_lr','vol_peakhold_vol','vol_peakhold_fix',
+    'spec_fft','spec_smooth','spec_fmin','spec_fmax','spec_mode','spec_peak','spec_peakhold','spec_peakhold_fix',
+    'spec_metertime','spec_hscale','spec_height','spec_freq_count','spec_dbscale_pos','spec_dbscale_count',
+    'spec_col_a','spec_col_b','spec_vismin','spec_vismax','spec_measmin','spec_measmax','spec_offsetY',
+    'stereo_type','stereo_decay','stereo_zoom','stereo_col_mid','stereo_col_side',
+    'stereo_mid','stereo_side','stereo_plane','stereo_offsetX','stereo_offsetY',
+    'spectro_view','spectro_fftsize','spectro_fmin','spectro_fmax','spectro_win','spectro_rx','spectro_ry','spectro_rz',
+    'spectro_zoom','spectro_ratio','spectro_hscale','spectro_axes_opacity','spectro_dbmin','spectro_dbmax',
+    'spectro_c_low','spectro_c_mid','spectro_c_high','spectro_offsetX','spectro_offsetY',
+    'inputGain','outputGain','globalScheme','renderZoom',
+    'vizShow_0','vizShow_1','vizShow_2','vizShow_3'];
+  const state = {};
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    state[id] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  state._layout = currentLayout;
+  state._vizOrder = [...vizOrder];
+  return state;
+}
+
+function applyState(state) {
+  Object.entries(state).forEach(([id, val]) => {
+    if (id.startsWith('_')) return;
+    const el = document.getElementById(id); if (!el) return;
+    if (el.type === 'checkbox') el.checked = val;
+    else el.value = val;
+    el.dispatchEvent(new Event('input'));
+    el.dispatchEvent(new Event('change'));
+  });
+  if (state._layout) {
+    currentLayout = state._layout;
+    document.querySelectorAll('.layout-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === currentLayout));
+  }
+  if (state._vizOrder) vizOrder = state._vizOrder;
+  buildVizLayout();
+}
+
+function renderPresets() {
+  const list = document.getElementById('presetList');
+  list.innerHTML = '';
+  if (!presets.length) {
+    list.innerHTML = '<div style="font-size:9px;color:var(--dim2);padding:4px">no saved presets</div>';
+    return;
+  }
+  presets.forEach((p, idx) => {
+    const row = document.createElement('div');
+    row.className = 'preset-item';
+    row.innerHTML = `<span class="pname">${p.name}</span><span class="p-load">load</span><span class="p-del">✕</span>`;
+    row.querySelector('.p-load').addEventListener('click', () => applyState(p.state));
+    row.querySelector('.p-del').addEventListener('click', () => {
+      presets.splice(idx, 1);
+      localStorage.setItem('avPresets', JSON.stringify(presets));
+      renderPresets();
+
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('btnSavePreset').addEventListener('click', () => {
+  const name = document.getElementById('presetName').value.trim() || 'preset ' + (presets.length+1);
+  presets = presets.filter(p => p.name !== name);
+  presets.unshift({ name, state: captureState() });
+  localStorage.setItem('avPresets', JSON.stringify(presets));
+  document.getElementById('presetName').value = '';
+  renderPresets();
+});
+
+renderPresets();
+
+(()=>{
+  ['vizSizeW','vizSizeH'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input', enforceSquares);
+  });
+})();
+
+(()=>{
+  ['vizShow_0','vizShow_1','vizShow_2','vizShow_3'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('change', buildVizLayout);
+  });
+})();
+
+(()=>{
+  let spaceEnabled = true;
+  document.addEventListener('focusin', e => {
+    const t = e.target;
+    spaceEnabled = !(t && (t.tagName==='TEXTAREA' || (t.tagName==='INPUT' && (t.type==='text' || t.type==='number'))));
+  });
+  document.addEventListener('focusout', () => { spaceEnabled = true; });
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || !spaceEnabled) return;
+    if (!window.AV || !window.AV.audioBuffer) return;
+    e.preventDefault();
+    if (window.AV.isPlaying) pausePlayback();
+    else startPlayback();
+  });
+})();
+
+(()=>{
+  const spl=document.getElementById('splitter'), rc=document.getElementById('rightCol');
+  let drag=false, sx=0, sw=0;
+  spl.addEventListener('mousedown', e=>{drag=true;sx=e.clientX;sw=rc.offsetWidth;spl.classList.add('dragging');e.preventDefault();});
+  document.addEventListener('mousemove', e=>{if(!drag)return;const d=sx-e.clientX;rc.style.width=Math.max(200,Math.min(460,sw+d))+'px';});
+  document.addEventListener('mouseup', ()=>{drag=false;spl.classList.remove('dragging');});
+})();
+
+let uiVisible = true;
+document.getElementById('btnToggleUI').addEventListener('click', () => {
+  uiVisible = !uiVisible;
+  document.getElementById('rightCol').style.display  = uiVisible ? '' : 'none';
+  document.getElementById('splitter').style.display  = uiVisible ? '' : 'none';
+  document.getElementById('btnToggleUI').classList.toggle('active', !uiVisible);
+  enforceSquares();
+  resizeTL();
+});
+
+document.getElementById('renderZoom').addEventListener('input', e => {
+  document.getElementById('renderZoom_v').textContent = Math.round(parseFloat(e.target.value) * 100) + '%';
+  enforceSquares();
+});
+
+document.body.addEventListener('dragover', e=>e.preventDefault());
+document.body.addEventListener('drop', e=>{
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f&&(f.type.startsWith('audio/')||f.type.startsWith('video/'))) loadFile(f);
+});
+
+document.getElementById('btnExport').addEventListener('click', () => document.getElementById('exportModal').classList.add('show'));
+document.getElementById('expCancel').addEventListener('click', () => document.getElementById('exportModal').classList.remove('show'));
+document.getElementById('expStart').addEventListener('click', startExport);
+
+async function startExport() {
+  document.getElementById('exportModal').classList.remove('show');
+  if (!window.AV.audioBuffer) return;
+  const av = window.AV;
+
+  const fps      = parseInt(document.getElementById('expFps').value)||30;
+  const bitrate  = parseInt(document.getElementById('expBitrate').value)*1000;
+  const position = document.getElementById('expPosition').value;
+  const format   = document.getElementById('expFormat').value;
+
+  const EXPW=1080, EXPH=1920;
+  const offCanvas=document.createElement('canvas');
+  offCanvas.width=EXPW; offCanvas.height=EXPH;
+  const offCtx=offCanvas.getContext('2d');
+
+  const area=document.getElementById('vizArea');
+  const aw=area.offsetWidth, ah=area.offsetHeight;
+  const scale=Math.min(EXPW/aw, EXPH*0.5/ah);
+  const sw=Math.round(aw*scale), sh=Math.round(ah*scale);
+
+  function getPosXY(){
+    switch(position){
+      case'bottom-left':  return[0,EXPH-sh];
+      case'bottom-right': return[EXPW-sw,EXPH-sh];
+      case'top-left':     return[0,0];
+      case'top-right':    return[EXPW-sw,0];
+      default:            return[(EXPW-sw)/2,(EXPH-sh)/2];
+    }
+  }
+  const [px,py]=getPosXY();
+
+  let mime='video/webm;codecs=vp9,opus';
+  if (format==='mp4'&&MediaRecorder.isTypeSupported('video/mp4')) mime='video/mp4';
+
+  const stream=offCanvas.captureStream(fps);
+  const audioDest=av.audioCtx.createMediaStreamDestination();
+  av.gainNodeOut.connect(audioDest);
+  audioDest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+
+  const chunks=[];
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bitrate});
+  rec.ondataavailable=e=>{if(e.data.size>0) chunks.push(e.data);};
+  rec.onstop=()=>{
+    const blob=new Blob(chunks,{type:mime});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='visualizer.'+(mime.includes('mp4')?'mp4':'webm'); a.click();
+    URL.revokeObjectURL(url);
+    document.getElementById('progressWrap').style.display='none';
+    try{av.gainNodeOut.disconnect(audioDest);}catch(e){}
+  };
+  rec.start();
+  document.getElementById('progressWrap').style.display='flex';
+
+  stopPlayback(false); av.cursorPos=0; startPlayback();
+  const totalFrames=Math.ceil(av.duration*fps);
+  let frame=0;
+
+  const fi=setInterval(()=>{
+    frame++;
+    document.getElementById('progressFill').style.width=(frame/totalFrames*100)+'%';
+    document.getElementById('progressText').textContent=`${frame}/${totalFrames}`;
+    offCtx.fillStyle='#000'; offCtx.fillRect(0,0,EXPW,EXPH);
+    vizOrder.forEach(vi=>{
+      const c=document.getElementById('vc'+vi); if(!c) return;
+      const win=c.closest('.viz-win'); if(!win) return;
+      const ar=area.getBoundingClientRect(), wr=win.getBoundingClientRect();
+      const dx=(wr.left-ar.left)*scale+px, dy=(wr.top-ar.top)*scale+py;
+      offCtx.drawImage(c, dx, dy, wr.width*scale, wr.height*scale);
+    });
+    if(frame>=totalFrames||!av.isPlaying){ clearInterval(fi); setTimeout(()=>rec.stop(),300); }
+  }, 1000/fps);
+}
+
+function mainLoop() {
+  requestAnimationFrame(mainLoop);
+  const av = window.AV;
+
+  if (av.isPlaying) av.cursorPos = getCurrentTime();
+  updateTimeDisplay();
+  drawTimeline();
+
+  if (!av.isPlaying || !av.analyserL) return;
+
+  if (av.loopEnabled && av.loopStart < av.loopEnd && av.cursorPos >= av.loopEnd) {
+    seekTo(av.loopStart);
+    return;
+  }
+
+  if (av.cursorPos >= av.duration) {
+    stopPlayback(true); return;
+  }
+
+  const fftBins = av.analyserL.frequencyBinCount;
+  if (!av.fdL || av.fdL.length !== fftBins) {
+    av.fdL = new Uint8Array(fftBins); av.fdR = new Uint8Array(fftBins);
+    av.tdL = new Float32Array(av.analyserL.fftSize); av.tdR = new Float32Array(av.analyserL.fftSize);
+  }
+  av.analyserL.getByteFrequencyData(av.fdL);
+  av.analyserR.getByteFrequencyData(av.fdR);
+  av.analyserL.getFloatTimeDomainData(av.tdL);
+  av.analyserR.getFloatTimeDomainData(av.tdR);
+
+  if (window.VIZ_VOLUME)      window.VIZ_VOLUME.draw(av.tdL, av.tdR);
+  if (window.VIZ_FREQUENCY)    window.VIZ_FREQUENCY.draw(av.fdL, av.fdR);
+  if (window.VIZ_STEREO)      window.VIZ_STEREO.draw(av.tdL, av.tdR);
+  if (window.VIZ_SPECTRUM) window.VIZ_SPECTRUM.draw(av.fdL);
+}
+
+buildVizLayout();
+resizeTL();
+mainLoop();
+
+setTimeout(() => {
+  document.getElementById('globalScheme').value = 'multi';
+  document.getElementById('btnApplyColors').click();
+}, 0);
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  const panelHTML = `
+    <div class="s-section">// mode</div>
+    <div class="s-row">
+      <span class="s-label">mode:</span>
+      <select class="inp" id="vol_mode" style="flex:1">
+        <option value="LR">L+R</option>
+        <option value="MS">M+S</option>
+        <option value="Vol">Vol</option>
+        <option value="Loud">Loud</option>
+      </select>
+    </div>
+
+    <div class="s-section">// scale (dB)</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">min:</span>
+      <input type="number" class="inp" id="vol_scaleMin" value="-72" min="-144" max="-12" step="6" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">max:</span>
+      <input type="number" class="inp" id="vol_scaleMax" value="0" min="-30" max="0" step="1" style="max-width:52px;flex:1;min-width:44px">
+    </div>
+
+    <div class="s-section">// control lines</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">clip:</span>
+      <input type="number" class="inp" id="vol_threshold" value="-6" min="-60" max="0" step="1" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">target:</span>
+      <input type="number" class="inp" id="vol_target" value="-14" min="-40" max="0" step="0.5" style="max-width:52px;flex:1;min-width:44px">
+    </div>
+    <div class="s-row" style="gap:8px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vol_show_clip" checked style="accent-color:var(--accent);width:12px;height:12px"> clip</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vol_show_target" checked style="accent-color:var(--accent);width:12px;height:12px"> target</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vol_show_zero" checked style="accent-color:var(--accent);width:12px;height:12px"> 0dB</label>
+    </div>
+
+    <div class="s-section" id="vol_sec_peak">// peak hold</div>
+    <div class="s-row" id="vol_row_peakhold_slider">
+      <span class="s-label">time:</span>
+      <input type="range" id="vol_peakhold" min="0.1" max="5" step="0.1" value="2" style="flex:1">
+      <span class="s-val" id="vol_peakhold_v">2.0s</span>
+    </div>
+    <div class="s-row" id="vol_row_peakhold_fix">
+      <span class="s-label">fixed:</span>
+      <input type="checkbox" id="vol_peakhold_fix" style="accent-color:var(--accent);width:14px;height:14px">
+    </div>
+
+    <div class="s-section" id="vol_sec_avg_lr" style="display:none">// average</div>
+    <div class="s-row" id="vol_row_avg_lr" style="display:none">
+      <span class="s-label">avg time:</span>
+      <input type="range" id="vol_avgtime_lr" min="0.1" max="5" step="0.1" value="0.5" style="flex:1">
+      <span class="s-val" id="vol_avgtime_lr_v">0.5s</span>
+    </div>
+
+    <div class="s-section" id="vol_sec_peak_vol" style="display:none">// peak hold</div>
+    <div class="s-row" id="vol_row_peakhold_vol" style="display:none">
+      <span class="s-label">time:</span>
+      <input type="range" id="vol_peakhold_vol" min="0.1" max="5" step="0.1" value="0.5" style="flex:1">
+      <span class="s-val" id="vol_peakhold_vol_v">0.5s</span>
+    </div>
+
+    <div class="s-section" id="vol_sec_avg" style="display:none">// average</div>
+    <div class="s-row" id="vol_row_avg" style="display:none">
+      <span class="s-label">avg time:</span>
+      <input type="range" id="vol_avgtime" min="0.1" max="5" step="0.1" value="3" style="flex:1">
+      <span class="s-val" id="vol_avgtime_v">3.0s</span>
+    </div>
+
+    <div class="s-section">// response</div>
+    <div class="s-row">
+      <span class="s-label">smooth:</span>
+      <input type="range" id="vol_response" min="0" max="0.95" step="0.05" value="0.6" style="flex:1">
+      <span class="s-val" id="vol_response_v">0.60</span>
+    </div>
+    <div class="s-row" id="vol_row_loud_reset" style="display:none">
+      <button class="btn" id="vol_loud_reset" style="font-size:8px;padding:2px 8px">reset</button>
+      <span class="s-label" style="margin-left:6px">double-click on module</span>
+    </div>
+
+    <div class="s-section">// bar colors</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">bar1:</span>
+      <input type="color" id="vol_ok" value="#00ccff">
+      <span class="s-label" style="min-width:0">bar2:</span>
+      <input type="color" id="vol_ok2" value="#aaff44">
+      <span class="s-label" style="min-width:0">bar3:</span>
+      <input type="color" id="vol_ok3" value="#ff6688">
+    </div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">clip:</span>
+      <input type="color" id="vol_clip" value="#ff3344">
+      <span class="s-label" style="min-width:0">target:</span>
+      <input type="color" id="vol_targetColor" value="#ffaa00">
+      <span class="s-label" style="min-width:0">0dB:</span>
+      <input type="color" id="vol_zeroColor" value="#808080">
+    </div>
+
+    <div class="s-section" id="vol_sec_values">// values display</div>
+    <div class="s-row" id="vol_row_values" style="gap:8px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vol_show_avg_val" checked style="accent-color:var(--accent);width:12px;height:12px"> avg</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="vol_show_peak_val" style="accent-color:var(--accent);width:12px;height:12px"> peak</label>
+    </div>
+
+    <div class="s-section">// label color</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">label:</span>
+      <input type="color" id="vol_labelColor" value="#000000">
+    </div>
+
+    <div class="s-section">// position</div>
+    <div class="s-row" style="gap:6px">
+      <span class="s-label" style="min-width:0">Y:</span>
+      <input type="number" class="inp" id="vol_offsetY" value="0" step="1" style="max-width:55px;flex:1">
+      <button class="btn" id="vol_reset_pos" style="font-size:8px;padding:2px 8px">reset</button>
+    </div>
+  `;
+
+  function bindSlider(id, vid, fmt) {
+    const el=document.getElementById(id), vl=document.getElementById(vid);
+    if (!el||!vl) return;
+    const upd=()=>vl.textContent=fmt(el.value);
+    el.addEventListener('input',upd); upd();
+  }
+
+  function injectPanel() {
+    const body = document.getElementById('volPanelBody');
+    if (!body) return;
+    body.insertAdjacentHTML('beforeend', panelHTML);
+
+    const sliderPH = document.getElementById('vol_peakhold');
+    const valPH    = document.getElementById('vol_peakhold_v');
+    const updPH = () => { valPH.textContent = peakHoldFixed ? '∞' : parseFloat(sliderPH.value).toFixed(1) + 's'; };
+    sliderPH.addEventListener('input', () => {
+      updPH();
+      const now = performance.now();
+      const holdMs = parseFloat(sliderPH.value) * 1000;
+      if (!peakHoldFixed) {
+        Object.keys(peaks).forEach(k => {
+          if (peaks[k]) peaks[k].expireTime = now + holdMs;
+        });
+      }
+    });
+    updPH();
+
+    const chkFix = document.getElementById('vol_peakhold_fix');
+    if (chkFix) {
+      chkFix.addEventListener('change', () => {
+        peakHoldFixed = chkFix.checked;
+        updPH();
+        if (peakHoldFixed) {
+          Object.keys(peaks).forEach(k => { if (peaks[k]) peaks[k].expireTime = Infinity; });
+        }
+      });
+    }
+
+    const sliderAT = document.getElementById('vol_avgtime');
+    const valAT    = document.getElementById('vol_avgtime_v');
+    const updAT = () => { valAT.textContent = parseFloat(sliderAT.value).toFixed(1) + 's'; };
+    sliderAT.addEventListener('input', () => {
+      updAT();
+      const cutoff = performance.now() - parseFloat(sliderAT.value) * 1000;
+      rmsRing = rmsRing.filter(s => s.t >= cutoff);
+    });
+    updAT();
+
+    const sliderATLR = document.getElementById('vol_avgtime_lr');
+    const valATLR    = document.getElementById('vol_avgtime_lr_v');
+    const updATLR = () => { valATLR.textContent = parseFloat(sliderATLR.value).toFixed(1) + 's'; };
+    sliderATLR.addEventListener('input', () => {
+      updATLR();
+      const now = performance.now();
+      const avgMs = parseFloat(sliderATLR.value) * 1000;
+      Object.keys(barHold).forEach(k => { if (barHold[k]) barHold[k].expireTime = now + avgMs; });
+    });
+    updATLR();
+
+    const sliderPHV = document.getElementById('vol_peakhold_vol');
+    const valPHV    = document.getElementById('vol_peakhold_vol_v');
+    const updPHV = () => { valPHV.textContent = parseFloat(sliderPHV.value).toFixed(1) + 's'; };
+    sliderPHV.addEventListener('input', () => {
+      updPHV();
+      volPeakExpire = performance.now() + parseFloat(sliderPHV.value) * 1000;
+    });
+    updPHV();
+
+    bindSlider('vol_response', 'vol_response_v', v => parseFloat(v).toFixed(2));
+
+    const modeEl = document.getElementById('vol_mode');
+    modeEl.addEventListener('change', updatePanelVisibility);
+    updatePanelVisibility();
+
+    const offY = document.getElementById('vol_offsetY');
+    offY.addEventListener('input', () => { volOffsetY = parseFloat(offY.value) || 0; });
+
+    document.getElementById('vol_reset_pos').addEventListener('click', () => {
+      volOffsetY = 0;
+      offY.value = 0;
+    });
+
+    document.getElementById('vol_loud_reset').addEventListener('click', resetLoud);
+
+    setupDrag();
+  }
+
+  function updatePanelVisibility() {
+    const mode   = (document.getElementById('vol_mode') || {value:'LR'}).value;
+    const isPeak = (mode === 'LR' || mode === 'MS');
+    const isVol  = (mode === 'Vol');
+    const show   = (id, v) => { const el=document.getElementById(id); if(el) el.style.display=v?'':'none'; };
+    show('vol_sec_peak',          isPeak);
+    show('vol_row_peakhold_slider', isPeak);
+    show('vol_row_peakhold_fix',   isPeak);
+    show('vol_sec_avg_lr',         isPeak);
+    show('vol_row_avg_lr',         isPeak);
+    show('vol_sec_values',         isPeak);
+    show('vol_row_values',         isPeak);
+    show('vol_sec_peak_vol',       isVol);
+    show('vol_row_peakhold_vol',   isVol);
+    show('vol_sec_avg',            isVol);
+    show('vol_row_avg',            isVol);
+    show('vol_row_loud_reset',     mode === 'Loud');
+  }
+
+  let peaks = {};
+  let peakHoldFixed = false;
+  let volOffsetY = 0;
+
+  let lufsRingMom   = [];
+  let lufsRingST    = [];
+  let lufsGatedBuf  = [];
+  let lufsIntVal    = -Infinity;
+  let lufsIntFrames = 0;
+
+  const LUFS_FPS        = 30;
+  const LUFS_MOM_FRAMES = Math.round(0.4 * LUFS_FPS);
+  const LUFS_ST_FRAMES  = Math.round(3.0 * LUFS_FPS);
+  const LUFS_INT_UPDATE = Math.round(1.0 * LUFS_FPS);
+  const LUFS_ABS_GATE   = -70;
+  const LUFS_MAX_BUF    = LUFS_FPS * 60 * 5;
+
+  let rmsRing       = [];
+  let volPeakVal    = -Infinity;
+  let volPeakExpire = 0;
+
+  let smoothedL = null, smoothedR = null, smoothedM = null, smoothedS = null, smoothedST = null;
+
+  let barHold = {};
+
+
+  let _volDragActive = false, _volDragStartY = 0, _volDragStartOff = 0;
+  document.addEventListener('mousemove', e => {
+    if (!_volDragActive) return;
+    volOffsetY = _volDragStartOff + (e.clientY - _volDragStartY);
+    const el = document.getElementById('vol_offsetY');
+    if (el) el.value = Math.round(volOffsetY);
+  });
+  document.addEventListener('mouseup', () => { _volDragActive = false; });
+
+  function setupDrag() {
+    const canvas = document.getElementById('vc0');
+    if (!canvas) { requestAnimationFrame(setupDrag); return; }
+    canvas.style.cursor = 'ns-resize';
+    canvas.addEventListener('mousedown', e => {
+      _volDragActive = true; _volDragStartY = e.clientY; _volDragStartOff = volOffsetY;
+      e.preventDefault();
+    });
+    canvas.addEventListener('dblclick', () => {
+      const mode = (document.getElementById('vol_mode') || {}).value;
+      if (mode === 'Loud') {
+        resetLoud();
+      } else {
+        volOffsetY = 0;
+        const el = document.getElementById('vol_offsetY');
+        if (el) el.value = 0;
+      }
+    });
+  }
+
+  function gv(id, def) { const e=document.getElementById(id); return e?parseFloat(e.value):def; }
+  function gc(id, def) { const e=document.getElementById(id); return e?e.value:def; }
+  function gb(id, def) { const e=document.getElementById(id); return e?e.checked:def; }
+
+  function rms(arr) {
+    let s=0; for(let i=0;i<arr.length;i++) s+=arr[i]*arr[i];
+    return 20*Math.log10(Math.sqrt(s/arr.length)+1e-10);
+  }
+  function peak(arr) {
+    let m=0; for(let i=0;i<arr.length;i++){const a=Math.abs(arr[i]);if(a>m)m=a;}
+    return 20*Math.log10(m+1e-10);
+  }
+  function ringAvg(ring) {
+    if(!ring.length) return -Infinity;
+    return ring.reduce((a,v)=>a+v,0)/ring.length;
+  }
+  function timedRingAvg(ring) {
+    if(!ring.length) return -Infinity;
+    let s=0; for(let i=0;i<ring.length;i++) s+=ring[i].val;
+    return s/ring.length;
+  }
+  function lufsAvgPower(ring) {
+    if(!ring.length) return -Infinity;
+    let sum=0; for(let i=0;i<ring.length;i++) sum+=Math.pow(10,ring[i]/10);
+    return 10*Math.log10(sum/ring.length);
+  }
+  function rmsStereo(arrL, arrR) {
+    let s=0; const n=arrL.length;
+    for(let i=0;i<n;i++){const avg=(arrL[i]+arrR[i])*0.5;s+=avg*avg;}
+    return 20*Math.log10(Math.sqrt(s/n)+1e-10);
+  }
+
+
+  function updatePeakHold(key, val, holdMs, nowMs) {
+    if (!peaks[key] || val >= peaks[key].val) {
+      peaks[key] = { val, expireTime: peakHoldFixed ? Infinity : nowMs + holdMs };
+    } else if (!peakHoldFixed && nowMs > peaks[key].expireTime) {
+      peaks[key].val = Math.max(peaks[key].val - 0.5, val);
+      peaks[key].expireTime = nowMs;
+    }
+    return peaks[key].val;
+  }
+
+  function updateBarHold(key, val, avgMs, nowMs) {
+    if (!barHold[key] || val >= barHold[key].val) {
+      barHold[key] = { val, expireTime: nowMs + avgMs };
+    } else if (nowMs > barHold[key].expireTime) {
+      barHold[key].val = Math.max(barHold[key].val - 0.8, val);
+      barHold[key].expireTime = nowMs;
+    }
+    return barHold[key].val;
+  }
+
+  function draw(tdL, tdR) {
+    const canvas=document.getElementById('vc0'); if(!canvas) return;
+    const W=canvas.width, H=canvas.height;
+    const ctx=canvas.getContext('2d');
+
+    const mode     = gc('vol_mode','LR');
+    const colOk       = gc('vol_ok','#00ccff');
+    const colOk2      = gc('vol_ok2', colOk);
+    const colOk3      = gc('vol_ok3', colOk);
+    const colClip     = gc('vol_clip','#ff3344');
+    const colTarget   = gc('vol_targetColor','#ffaa00');
+    const colZero     = gc('vol_zeroColor','#808080');
+    const labelCol    = gc('vol_labelColor','#000000');
+    const showAvgVal  = gb('vol_show_avg_val', true);
+    const showPeakVal = gb('vol_show_peak_val', false);
+    const thresh   = gv('vol_threshold',-6);
+    const target   = gv('vol_target',-14);
+    const scaleMin = gv('vol_scaleMin',-72);
+    const scaleMax = gv('vol_scaleMax',0);
+    const holdSec  = gv('vol_peakhold',2);
+    const avgSec   = gv('vol_avgtime',3);
+    const avgSecLR = gv('vol_avgtime_lr',0.5);
+    const peakSecVol = gv('vol_peakhold_vol',0.5);
+    const resp     = gv('vol_response', 0.6);
+    const showClip = gb('vol_show_clip',true);
+    const showTgt  = gb('vol_show_target',true);
+    const showZero = gb('vol_show_zero',true);
+
+    const nowMs  = performance.now();
+    const holdMs = holdSec * 1000;
+    const avgMsLR = avgSecLR * 1000;
+
+    const DB_MAX = scaleMax + 6;
+    const DB_MIN = scaleMin;
+
+    const off = Math.max(0, volOffsetY);
+    const dBtoY = db => H + off - Math.max(0,Math.min(1,(db-DB_MIN)/(DB_MAX-DB_MIN)))*H;
+
+    ctx.fillStyle='#030303'; ctx.fillRect(0,0,W,H);
+
+    const rmsL=rms(tdL), rmsR=rms(tdR);
+    const pkL=peak(tdL),  pkR=peak(tdR);
+    const mid=new Float32Array(tdL.length), side=new Float32Array(tdL.length);
+    for(let i=0;i<tdL.length;i++){mid[i]=(tdL[i]+tdR[i])*0.5;side[i]=(tdL[i]-tdR[i])*0.5;}
+    const rmsM=rms(mid), rmsS=rms(side);
+    const pkM=peak(mid),  pkS=peak(side);
+    const rmsST=rmsStereo(tdL,tdR), pkST=Math.max(pkL,pkR);
+
+    if (smoothedL === null) {
+      smoothedL = rmsL; smoothedR = rmsR; smoothedM = rmsM;
+      smoothedS = rmsS; smoothedST = rmsST;
+    } else {
+      smoothedL  = resp * smoothedL  + (1-resp) * rmsL;
+      smoothedR  = resp * smoothedR  + (1-resp) * rmsR;
+      smoothedM  = resp * smoothedM  + (1-resp) * rmsM;
+      smoothedS  = resp * smoothedS  + (1-resp) * rmsS;
+      smoothedST = resp * smoothedST + (1-resp) * rmsST;
+    }
+
+    lufsRingMom.push(rmsST); if(lufsRingMom.length>LUFS_MOM_FRAMES) lufsRingMom.shift();
+    lufsRingST.push(rmsST);  if(lufsRingST.length>LUFS_ST_FRAMES)   lufsRingST.shift();
+    if(rmsST>LUFS_ABS_GATE){lufsGatedBuf.push(rmsST);if(lufsGatedBuf.length>LUFS_MAX_BUF)lufsGatedBuf.shift();}
+    lufsIntFrames++;
+    if(lufsIntFrames>=LUFS_INT_UPDATE && lufsGatedBuf.length>0){
+      lufsIntFrames=0;
+      const ungatedAvg=lufsAvgPower(lufsGatedBuf);
+      const relGate=ungatedAvg-10;
+      const relGated=lufsGatedBuf.filter(v=>v>relGate);
+      lufsIntVal=relGated.length>0?lufsAvgPower(relGated):lufsAvgPower(lufsGatedBuf);
+    }
+    const lufsMom=lufsAvgPower(lufsRingMom), lufsShort=lufsAvgPower(lufsRingST), lufsInt=lufsIntVal;
+
+    const avgMs = avgSec * 1000;
+    rmsRing.push({ val: rmsST, t: nowMs });
+    const cutoff = nowMs - avgMs;
+    while (rmsRing.length && rmsRing[0].t < cutoff) rmsRing.shift();
+    const rmsAvg = timedRingAvg(rmsRing);
+    const volHoldMs=peakSecVol*1000;
+    const curPk=Math.max(pkL,pkR);
+    if(curPk>=volPeakVal){volPeakVal=curPk;volPeakExpire=nowMs+volHoldMs;}
+    else if(nowMs>volPeakExpire){volPeakVal=Math.max(volPeakVal-0.5,curPk);}
+
+    let meters=[];
+    if(mode==='LR'){
+      meters=[
+        {lbl:'L',  val:updateBarHold('bL', smoothedL, avgMsLR, nowMs),  ph:updatePeakHold('L', pkL,  holdMs,nowMs), col:colOk,  key:'L'},
+        {lbl:'R',  val:updateBarHold('bR', smoothedR, avgMsLR, nowMs),  ph:updatePeakHold('R', pkR,  holdMs,nowMs), col:colOk2, key:'R'},
+        {lbl:'LR', val:updateBarHold('bST',smoothedST,avgMsLR, nowMs),  ph:updatePeakHold('S', pkST, holdMs,nowMs), col:colOk3, key:'ST'},
+      ];
+    } else if(mode==='MS'){
+      meters=[
+        {lbl:'M',  val:updateBarHold('bM', smoothedM, avgMsLR, nowMs),  ph:updatePeakHold('M',  pkM,  holdMs,nowMs), col:colOk,  key:'M'},
+        {lbl:'S',  val:updateBarHold('bS', smoothedS, avgMsLR, nowMs),  ph:updatePeakHold('Ss', pkS,  holdMs,nowMs), col:colOk2, key:'S'},
+        {lbl:'LR', val:updateBarHold('bST',smoothedST,avgMsLR, nowMs),  ph:updatePeakHold('ST', pkST, holdMs,nowMs), col:colOk3, key:'ST'},
+      ];
+    } else if(mode==='Vol'){
+      meters=[
+        {lbl:'R', val:smoothedST, ph:null,       col:colOk,  key:'VR'},
+        {lbl:'A', val:rmsAvg,     ph:null,       col:colOk2, key:'VA'},
+        {lbl:'P', val:volPeakVal, ph:volPeakVal, col:colOk3, key:'VP'},
+      ];
+    } else {
+      meters=[
+        {lbl:'M', val:lufsMom,   ph:null, col:colOk,  key:'LM'},
+        {lbl:'S', val:lufsShort, ph:null, col:colOk2, key:'LS'},
+        {lbl:'I', val:lufsInt,   ph:null, col:colOk3, key:'LI'},
+      ];
+    }
+
+    const PAD_L=4, PAD_R=4, PAD_T=4, PAD_B=22;
+    const usableW=W-PAD_L-PAD_R, usableH=H-PAD_T-PAD_B;
+    const GAP=Math.floor(usableW*0.06);
+    const BW=Math.floor((usableW-GAP*(meters.length+1))/meters.length);
+
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H); ctx.clip();
+
+    drawGrid(ctx,W,H,DB_MIN,DB_MAX,dBtoY,PAD_L,PAD_T,usableH);
+    if (showClip) drawControlLine(ctx,W,PAD_L,dBtoY(thresh),colClip,thresh+'dB',true,H);
+    if (showTgt)  drawControlLine(ctx,W,PAD_L,dBtoY(target),colTarget,target+(mode==='Loud'?'LU':'dB'),false,H);
+    if (showZero && DB_MAX>=0) drawControlLine(ctx,W,PAD_L,dBtoY(0),colZero,'0',true,H);
+
+    const modeIsLRMS = (mode === 'LR' || mode === 'MS');
+    const doAvg  = modeIsLRMS ? showAvgVal  : true;
+    const doPeak = modeIsLRMS ? showPeakVal : false;
+    meters.forEach((m,i)=>{
+      const x=PAD_L+GAP+i*(BW+GAP);
+      drawMeter(ctx,x,PAD_T,BW,usableH,m,dBtoY,DB_MIN,H,PAD_B,off,labelCol,doAvg,doPeak);
+    });
+    ctx.restore();
+
+    const ov=document.getElementById('vo0'); if(ov) ov.innerHTML='';
+  }
+
+  function drawGrid(ctx,W,H,DB_MIN,DB_MAX,dBtoY,padL,padT,usableH){
+    const range=DB_MAX-DB_MIN; let step=6;
+    for(const s of [1,2,3,6,12,24]){if(range/s<=20){step=s;break;}}
+    for(let db=Math.ceil(DB_MIN/step)*step;db<=DB_MAX;db+=step){
+      const y=dBtoY(db);
+      if(y<-2||y>H+2) continue;
+      ctx.strokeStyle=db===0?'#1a1a1a':'#0d0d0d';
+      ctx.lineWidth=db===0?1.5:1;
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+  }
+
+  function drawControlLine(ctx,W,padL,y,color,label,dashed,canvH){
+    if(y<-20||y>canvH+20) return;
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(canvH/270)));
+    ctx.save();
+    ctx.strokeStyle=color+'dd'; ctx.lineWidth=2;
+    ctx.setLineDash(dashed?[5,4]:[9,4]);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W,y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=color+'ff';
+    ctx.font=`bold ${Math.round(10*fScale)}px 'Courier New', monospace`;
+    ctx.fillText(label,padL+2,y-2);
+    ctx.restore();
+  }
+
+  function drawMeter(ctx,x,padT,barW,usableH,meter,dBtoY,DB_MIN,canvH,padB,off,labelCol,showAvg,showPeak){
+    const fScale  = Math.max(0.55, Math.min(1.6, Math.sqrt(canvH/270)));
+    const barCol  = meter.col || '#00ccff';
+    const val     = isFinite(meter.val)?meter.val:DB_MIN;
+    const barTop  = dBtoY(val);
+    const barBase = dBtoY(DB_MIN);
+    const barH    = Math.max(0,barBase-barTop);
+
+    ctx.fillStyle=barCol;
+    ctx.fillRect(x,barTop,barW,barH);
+
+    if(meter.ph!==null && isFinite(meter.ph)){
+      const py=dBtoY(meter.ph);
+      if(py>=0 && py<=canvH){
+        ctx.fillStyle=barCol;
+        ctx.fillRect(x,py-2,barW,3);
+      }
+    }
+
+    const cx2=x+barW/2;
+    const labelY      = canvH - 5;
+    const labelAreaTop= canvH - padB;
+
+    ctx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`; ctx.textAlign='center';
+    ctx.fillStyle=labelCol;
+    ctx.fillText(meter.lbl,cx2,labelY);
+
+    const sv   = isFinite(meter.val) ? meter.val.toFixed(1) : '-∞';
+    const phOk = showPeak && meter.ph !== null && isFinite(meter.ph);
+    const sp   = phOk ? meter.ph.toFixed(1) : null;
+    const doAvg  = showAvg;
+    const doPeak = sp !== null;
+    const both   = doAvg && doPeak;
+    const lineH  = Math.round(11 * fScale) + 2;
+
+    if (doAvg || doPeak) {
+      ctx.font = `${Math.round(11*fScale)}px 'Courier New', monospace`;
+      let yBase, col;
+      if (barH > 14) {
+        yBase = Math.min(labelAreaTop - 4, Math.max(padT + 9, barBase - 4));
+        col = labelCol;
+      } else {
+        yBase = Math.max(padT + 9, Math.min(labelAreaTop - 4, barTop - 2));
+        col = '#555';
+      }
+      ctx.fillStyle = col;
+      if (both) {
+        ctx.fillText(sp, cx2, yBase - lineH);
+        ctx.fillText(sv, cx2, yBase);
+      } else if (doAvg) {
+        ctx.fillText(sv, cx2, yBase);
+      } else {
+        ctx.fillText(sp, cx2, yBase);
+      }
+    }
+    ctx.textAlign='left';
+  }
+
+  function resetLoud() {
+    lufsRingMom=[]; lufsRingST=[]; lufsGatedBuf=[];
+    lufsIntVal=-Infinity; lufsIntFrames=LUFS_INT_UPDATE-1;
+  }
+
+  function onLoad(){
+    peaks={}; barHold={};
+    lufsRingMom=[]; lufsRingST=[]; lufsGatedBuf=[];
+    lufsIntVal=-Infinity; lufsIntFrames=0;
+    rmsRing=[]; volPeakVal=-Infinity; volPeakExpire=0;
+    smoothedL=null; smoothedR=null; smoothedM=null; smoothedS=null; smoothedST=null;
+  }
+
+  injectPanel();
+  window.VIZ_VOLUME = { draw, onLoad, rebindDrag: setupDrag };
+})();
+</script>
+<script>
+(function() {
+  'use strict';
+
+  const panelHTML = `
+    <div class="s-section">// fft</div>
+    <div class="s-row">
+      <span class="s-label">size:</span>
+      <select class="inp" id="spec_fft" style="flex:1">
+        <option value="1024">1024</option>
+        <option value="2048" selected>2048</option>
+        <option value="4096">4096</option>
+        <option value="8192">8192</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span class="s-label">smoothing:</span>
+      <input type="range" id="spec_smooth" min="0" max="0.98" step="0.01" value="0.75" style="flex:1">
+      <span class="s-val" id="spec_smooth_v">0.75</span>
+    </div>
+
+    <div class="s-section">// frequency range</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">min:</span>
+      <input type="number" class="inp" id="spec_fmin" value="20" min="1" max="500" style="max-width:65px;flex:1;min-width:55px">
+      <span class="s-label" style="min-width:0">max:</span>
+      <input type="number" class="inp" id="spec_fmax" value="20000" min="500" max="24000" style="max-width:65px;flex:1;min-width:55px">
+    </div>
+
+    <div class="s-section">// mode</div>
+    <div class="s-row">
+      <span class="s-label">mode:</span>
+      <select class="inp" id="spec_mode" style="flex:1">
+        <option value="bars">bars</option>
+        <option value="line">line</option>
+        <option value="mirror">mirror</option>
+      </select>
+    </div>
+
+    <div class="s-section">// dynamics</div>
+    <div class="s-row">
+      <span class="s-label">peak hold:</span>
+      <input type="range" id="spec_peakhold" min="0.1" max="5" step="0.1" value="1.5" style="flex:1">
+      <span class="s-val" id="spec_peakhold_v">1.5s</span>
+    </div>
+    <div class="s-row" style="gap:8px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="spec_peakhold_fix" style="accent-color:var(--accent);width:12px;height:12px"> fixed</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--dim)"><input type="checkbox" id="spec_peak" checked style="accent-color:var(--accent);width:12px;height:12px"> peak line</label>
+    </div>
+    <div class="s-row">
+      <span class="s-label">meter time:</span>
+      <input type="range" id="spec_metertime" min="0.1" max="5" step="0.1" value="0.5" style="flex:1">
+      <span class="s-val" id="spec_metertime_v">0.5s</span>
+    </div>
+
+    <div class="s-section">// shape</div>
+    <div class="s-row">
+      <span class="s-label">ratio:</span>
+      <input type="range" id="spec_hscale" min="0" max="2" step="0.01" value="1" style="flex:1">
+      <span class="s-val" id="spec_hscale_v">1.00</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">height:</span>
+      <input type="range" id="spec_height" min="0" max="2" step="0.01" value="1" style="flex:1">
+      <span class="s-val" id="spec_height_v">1.00</span>
+    </div>
+
+    <div class="s-section">// display scale (dB)</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">min:</span>
+      <input type="number" class="inp" id="spec_vismin" value="-90" min="-144" max="-20" step="6" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">max:</span>
+      <input type="number" class="inp" id="spec_vismax" value="0" min="-20" max="6" step="1" style="max-width:52px;flex:1;min-width:44px">
+    </div>
+
+    <div class="s-section">// analysis range (dB)</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">min:</span>
+      <input type="number" class="inp" id="spec_measmin" value="-90" min="-144" max="-20" step="6" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">max:</span>
+      <input type="number" class="inp" id="spec_measmax" value="0" min="-20" max="6" step="1" style="max-width:52px;flex:1;min-width:44px">
+    </div>
+
+    <div class="s-section">// freq markers</div>
+    <div class="s-row">
+      <span class="s-label">count:</span>
+      <select class="inp" id="spec_freq_count" style="flex:1">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+
+    <div class="s-section">// dB scale</div>
+    <div class="s-row">
+      <span class="s-label">side:</span>
+      <select class="inp" id="spec_dbscale_pos" style="flex:1">
+        <option value="off" selected>off</option>
+        <option value="left">left</option>
+        <option value="right">right</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span class="s-label">count:</span>
+      <select class="inp" id="spec_dbscale_count" style="flex:1">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4" selected>4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+
+    <div class="s-section">// colors</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">low/mid:</span>
+      <input type="color" id="spec_col_a" value="#0055ff">
+      <span class="s-label" style="min-width:0">high:</span>
+      <input type="color" id="spec_col_b" value="#ff3344">
+    </div>
+
+    <div class="s-section">// position</div>
+    <div class="s-row" style="gap:6px">
+      <span class="s-label" style="min-width:0">Y:</span>
+      <input type="number" class="inp" id="spec_offsetY" value="40" step="1" style="max-width:55px;flex:1">
+      <button class="btn" id="spec_reset_pos" style="font-size:8px;padding:2px 8px">reset</button>
+    </div>
+  `;
+
+  function injectPanel() {
+    const body = document.getElementById('specPanelBody');
+    if (!body) return;
+    body.insertAdjacentHTML('beforeend', panelHTML);
+
+    bindSlider('spec_smooth','spec_smooth_v', v => parseFloat(v).toFixed(2));
+    bindSlider('spec_metertime','spec_metertime_v', v => parseFloat(v).toFixed(1)+'s');
+    bindSlider('spec_hscale','spec_hscale_v', v => parseFloat(v).toFixed(2));
+    bindSlider('spec_height','spec_height_v', v => parseFloat(v).toFixed(2));
+
+    const slPH  = document.getElementById('spec_peakhold');
+    const valPH = document.getElementById('spec_peakhold_v');
+    const updPH = () => { valPH.textContent = specPeakFixed ? '∞' : parseFloat(slPH.value).toFixed(1)+'s'; };
+    slPH.addEventListener('input', () => {
+      updPH();
+      if (specPeakExpMs && !specPeakFixed) {
+        const now = performance.now();
+        const hold = parseFloat(slPH.value) * 1000;
+        for (let i=0; i<specPeakExpMs.length; i++) specPeakExpMs[i] = now + hold;
+      }
+    });
+    updPH();
+
+    const slMT = document.getElementById('spec_metertime');
+    slMT.addEventListener('input', () => {
+      if (specMeterExpMs) {
+        const now = performance.now();
+        const hold = parseFloat(slMT.value) * 1000;
+        for (let i=0; i<specMeterExpMs.length; i++) specMeterExpMs[i] = now + hold;
+      }
+    });
+
+    const chkFix = document.getElementById('spec_peakhold_fix');
+    if (chkFix) {
+      chkFix.addEventListener('change', () => {
+        specPeakFixed = chkFix.checked;
+        updPH();
+        if (!specPeakFixed) resetPeaks();
+      });
+    }
+
+    document.getElementById('spec_fft').addEventListener('change', () => {
+      if (typeof setFFTSize === 'function') setFFTSize();
+    });
+    document.getElementById('spec_smooth').addEventListener('input', () => {
+      if (typeof setSmoothingTime === 'function') setSmoothingTime();
+    });
+
+    const modeEl = document.getElementById('spec_mode');
+    modeEl.addEventListener('change', () => {
+      if (modeEl.value === 'mirror') {
+        const off = document.getElementById('spec_offsetY');
+        const h   = document.getElementById('spec_height');
+        const s   = document.getElementById('spec_dbscale_pos');
+        if (off) { off.value = 0; specOffsetY = 0; }
+        if (h)   { h.value = 0.71; h.dispatchEvent(new Event('input')); }
+        if (s)   { s.value = 'off'; }
+      }
+    });
+
+    const offY = document.getElementById('spec_offsetY');
+    specOffsetY = parseFloat(offY.value) || 0;
+    offY.addEventListener('input', () => { specOffsetY = parseFloat(offY.value)||0; });
+
+    document.getElementById('spec_reset_pos').addEventListener('click', () => {
+      specOffsetY = 0; offY.value = 0;
+    });
+
+    setupDrag();
+  }
+
+  function bindSlider(id, vid, fmt) {
+    const el=document.getElementById(id), vl=document.getElementById(vid);
+    if(!el||!vl) return;
+    const upd=()=>vl.textContent=fmt(el.value);
+    el.addEventListener('input',upd); upd();
+  }
+
+  let specPeakData  = null;
+  let specPeakExpMs = null;
+  let specPeakFixed = false;
+  let specOffsetY   = 40;
+
+  let specMeterData  = null;
+  let specMeterExpMs = null;
+
+  function resetPeaks() {
+    specPeakData=null; specPeakExpMs=null;
+    specMeterData=null; specMeterExpMs=null;
+  }
+
+  let _specDragActive = false, _specDragStartY = 0, _specDragStartOff = 0;
+  document.addEventListener('mousemove', e => {
+    if (!_specDragActive) return;
+    specOffsetY = _specDragStartOff + (e.clientY - _specDragStartY);
+    const el=document.getElementById('spec_offsetY'); if(el) el.value=Math.round(specOffsetY);
+  });
+  document.addEventListener('mouseup', () => { _specDragActive = false; });
+
+  function setupDrag() {
+    const canvas = document.getElementById('vc1');
+    if (!canvas) { requestAnimationFrame(setupDrag); return; }
+    canvas.style.cursor='ns-resize';
+    canvas.addEventListener('mousedown', e => {
+      _specDragActive=true; _specDragStartY=e.clientY; _specDragStartOff=specOffsetY;
+      e.preventDefault();
+    });
+    canvas.addEventListener('dblclick', ()=>{
+      specOffsetY=0;
+      const el=document.getElementById('spec_offsetY'); if(el) el.value=0;
+    });
+  }
+
+  function hexRGB(hex){ return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]; }
+  function lerpColor(cA, cB, t) {
+    const a=hexRGB(cA), b=hexRGB(cB);
+    return [Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t)];
+  }
+
+  function gn(id,def){ const e=document.getElementById(id); if(!e) return def; const v=parseFloat(e.value); return isNaN(v)?def:v; }
+  function gs(id,def){ const e=document.getElementById(id); return e?e.value:def; }
+  function freqToX(f,fmin,fmax,W){ return ((Math.log10(f)-Math.log10(fmin))/(Math.log10(fmax)-Math.log10(fmin)))*W; }
+  function xToFreq(x,fmin,fmax,W){ return Math.pow(10,Math.log10(fmin)+(x/W)*(Math.log10(fmax)-Math.log10(fmin))); }
+  function dbToAmp(db,mn,mx){ return Math.max(0,Math.min(1,(db-mn)/(mx-mn))); }
+
+  function getFreqMarkers(fmin, fmax, n) {
+    if (n <= 0) return [];
+    const out = [];
+    const logMin = Math.log10(fmin), logMax = Math.log10(fmax);
+    for (let i = 1; i <= n; i++) {
+      const t = i / (n + 1);
+      out.push(Math.pow(10, logMin + t * (logMax - logMin)));
+    }
+    return out;
+  }
+
+  function draw(fdL) {
+    const canvas=document.getElementById('vc1'); if(!canvas||!fdL) return;
+    const W=canvas.width, H=canvas.height;
+    const ctx=canvas.getContext('2d');
+    const av=window.AV;
+
+    const fmin    = gn('spec_fmin',20);
+    const fmax    = gn('spec_fmax',20000);
+    const mode    = (document.getElementById('spec_mode')||{value:'bars'}).value;
+    const showPeak= (document.getElementById('spec_peak')||{checked:true}).checked;
+    const colA    = (document.getElementById('spec_col_a')||{value:'#0055ff'}).value;
+    const colB    = (document.getElementById('spec_col_b')||{value:'#ff3344'}).value;
+    const visMin  = gn('spec_vismin',-90);
+    const visMax  = gn('spec_vismax',0);
+    const measMin = gn('spec_measmin',-90);
+    const measMax = gn('spec_measmax',0);
+    const holdSec = gn('spec_peakhold',1.5);
+    const holdMs  = holdSec * 1000;
+    const meterSec= gn('spec_metertime',0.5);
+    const meterMs = meterSec * 1000;
+    const ratio   = gn('spec_hscale', 1);
+    const hScale  = gn('spec_height', 1);
+    const freqN   = gn('spec_freq_count', 3);
+    const dbPos   = gs('spec_dbscale_pos','off');
+    const dbN     = gn('spec_dbscale_count', 4);
+    const off     = Math.max(0, specOffsetY);
+
+    const nowMs = performance.now();
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+
+    ctx.fillStyle='#020202'; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H); ctx.clip();
+
+    const sr=av.audioCtx.sampleRate, nyq=sr/2, bins=fdL.length;
+
+    if(!specPeakData||specPeakData.length!==W){
+      specPeakData   = new Float32Array(W).fill(visMin);
+      specPeakExpMs  = new Float64Array(W).fill(0);
+      specMeterData  = new Float32Array(W).fill(visMin);
+      specMeterExpMs = new Float64Array(W).fill(0);
+    }
+
+    const markers = getFreqMarkers(fmin, fmax, freqN);
+
+    if(mode==='bars'||mode==='mirror'){
+      for(let xi=0;xi<W;xi++){
+        const f1=xToFreq(xi,fmin,fmax,W), f2=xToFreq(xi+1,fmin,fmax,W);
+        const b1=Math.max(0,Math.floor((f1/nyq)*bins));
+        const b2=Math.min(bins-1,Math.ceil((f2/nyq)*bins));
+        let mx=0; for(let b=b1;b<=b2;b++) if(fdL[b]>mx) mx=fdL[b];
+        const scaledMx=Math.min(255,mx*ratio);
+        const dbInst=20*Math.log10(scaledMx/255+1e-10);
+
+        if (dbInst > specMeterData[xi]) {
+          specMeterData[xi] = dbInst;
+          specMeterExpMs[xi] = nowMs + meterMs;
+        } else if (nowMs > specMeterExpMs[xi]) {
+          specMeterData[xi] = Math.max(specMeterData[xi] - 0.5, dbInst);
+          specMeterExpMs[xi] = nowMs;
+        }
+        const db = specMeterData[xi];
+
+        const amp=dbToAmp(db,measMin,measMax);
+        const frac=Math.max(0,Math.min(1,(db-visMin)/(visMax-visMin)));
+        const barH=Math.max(0,frac*H*hScale);
+        const barBaseY=H+off;
+        const barTopY=barBaseY-barH;
+        const t=xi/W;
+        const col=lerpColor(colA,colB,t);
+        ctx.fillStyle=`rgba(${col[0]},${col[1]},${col[2]},${0.2+amp*0.8})`;
+        if(mode==='mirror'){
+          ctx.fillRect(xi,H/2+off-barH/2,1,barH);
+        } else {
+          ctx.fillRect(xi,barTopY,1,barH);
+        }
+
+        if(db>specPeakData[xi]){
+          specPeakData[xi]=db;
+          specPeakExpMs[xi]=specPeakFixed?Infinity:nowMs+holdMs;
+        } else if(!specPeakFixed && nowMs>specPeakExpMs[xi]){
+          specPeakData[xi]=Math.max(specPeakData[xi]-0.5,db);
+          specPeakExpMs[xi]=nowMs;
+        }
+      }
+
+      if(showPeak){
+        ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
+        for(let xi=0;xi<W;xi++){
+          const py=H+off-Math.max(0,Math.min(1,(specPeakData[xi]-visMin)/(visMax-visMin)))*H*hScale;
+          xi===0?ctx.moveTo(xi,py):ctx.lineTo(xi,py);
+        }
+        ctx.stroke();
+      }
+
+    } else {
+      const pts = new Array(W);
+      for (let xi=0; xi<W; xi++) {
+        const f=xToFreq(xi,fmin,fmax,W);
+        const b=Math.min(bins-1,Math.floor((f/nyq)*bins));
+        const dbInst=20*Math.log10(Math.min(255,fdL[b]*ratio)/255+1e-10);
+
+        if (dbInst > specMeterData[xi]) {
+          specMeterData[xi] = dbInst;
+          specMeterExpMs[xi] = nowMs + meterMs;
+        } else if (nowMs > specMeterExpMs[xi]) {
+          specMeterData[xi] = Math.max(specMeterData[xi] - 0.5, dbInst);
+          specMeterExpMs[xi] = nowMs;
+        }
+        const db = specMeterData[xi];
+        const y = H+off-Math.max(0,Math.min(1,(db-visMin)/(visMax-visMin)))*H*hScale;
+        pts[xi] = { y, db, ageMs: Math.max(0, nowMs - (specMeterExpMs[xi] - meterMs)) };
+      }
+
+      const baseY = H + off;
+      for (let xi=0; xi<W; xi++) {
+        const t = xi / W;
+        const col = lerpColor(colA, colB, t);
+        const darker = [Math.round(col[0]*0.5), Math.round(col[1]*0.5), Math.round(col[2]*0.5)];
+        const ageRatio = Math.min(1, pts[xi].ageMs / Math.max(1, meterMs));
+        const opacity = ageRatio * 0.35;
+        if (opacity > 0.01 && pts[xi].y < baseY) {
+          ctx.fillStyle = `rgba(${darker[0]},${darker[1]},${darker[2]},${opacity})`;
+          ctx.fillRect(xi, pts[xi].y, 1, baseY - pts[xi].y);
+        }
+      }
+
+      ctx.beginPath(); ctx.lineWidth=1.5;
+      for(let xi=0;xi<W;xi++){
+        const y = pts[xi].y;
+        const t = xi/W;
+        const col = lerpColor(colA,colB,t);
+        ctx.strokeStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        if (xi===0) ctx.moveTo(xi,y); else ctx.lineTo(xi,y);
+      }
+      ctx.stroke();
+    }
+
+    ctx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`;
+    markers.forEach(f=>{
+      const x=freqToX(f,fmin,fmax,W);
+      if(x<0||x>W) return;
+      ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+      const label=f>=1000?(f/1000).toFixed(f>=10000?0:1)+'k':Math.round(f)+'';
+      ctx.fillStyle='#ffffff';
+      ctx.textAlign='center';
+      ctx.fillText(label,x,H-6);
+    });
+
+    if (dbPos !== 'off' && mode !== 'mirror' && dbN > 0) {
+      const isLeft = (dbPos === 'left');
+      ctx.font=`${Math.round(10*fScale)}px 'Courier New', monospace`;
+      ctx.textAlign = isLeft ? 'left' : 'right';
+      const xTick = isLeft ? 2 : W - 2;
+      const xLine0 = isLeft ? 0 : W - 4;
+      const xLine1 = isLeft ? 4 : W;
+      for (let i=0; i<=dbN; i++) {
+        const db = visMin + (visMax - visMin) * (i / dbN);
+        const y = H + off - ((db - visMin) / (visMax - visMin)) * H * hScale;
+        if (y < 0 || y > H) continue;
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xLine0, y); ctx.lineTo(xLine1, y); ctx.stroke();
+        ctx.fillStyle = '#cccccc';
+        ctx.fillText(db.toFixed(0), xTick, y - 2);
+      }
+      ctx.textAlign = 'left';
+    }
+
+    ctx.textAlign='left';
+    ctx.restore();
+  }
+
+  function onLoad() { resetPeaks(); }
+
+  injectPanel();
+  window.VIZ_FREQUENCY = { draw, onLoad, resetPeaks, rebindDrag: setupDrag };
+})();
+</script>
+<script>
+(function() {
+  'use strict';
+
+  const DECAY_MIN = 0.005;
+  const DECAY_MAX = 0.25;
+  const CORR_WIN_MIN = 0.1;
+  const CORR_WIN_MAX = 3.0;
+
+  const panelHTML = `
+    <div class="s-section">// type</div>
+    <div class="s-row">
+      <span class="s-label">type:</span>
+      <select class="inp" id="stereo_type" style="flex:1">
+        <option value="lissajous">lissajous</option>
+        <option value="polar">polar</option>
+        <option value="correlation">correlation</option>
+      </select>
+    </div>
+
+    <div class="s-section">// view</div>
+    <div class="s-row">
+      <span class="s-label">zoom:</span>
+      <input type="range" id="stereo_zoom" min="0.3" max="3" step="0.05" value="1" style="flex:1">
+      <span class="s-val" id="stereo_zoom_v">1.00</span>
+    </div>
+
+    <div class="s-section">// dynamics</div>
+    <div class="s-row">
+      <span class="s-label">trail decay:</span>
+      <input type="range" id="stereo_decay" min="0.005" max="0.25" step="0.005" value="0.17" style="flex:1">
+      <span class="s-val" id="stereo_decay_v">0.17</span>
+    </div>
+
+    <div class="s-section">// mid / side</div>
+    <div class="s-row">
+      <span class="s-label">mid:</span>
+      <input type="range" id="stereo_mid" min="-100" max="100" step="1" value="0" style="flex:1">
+      <span class="s-val" id="stereo_mid_v" style="min-width:40px;text-align:right">+0%</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">side:</span>
+      <input type="range" id="stereo_side" min="-100" max="100" step="1" value="0" style="flex:1">
+      <span class="s-val" id="stereo_side_v" style="min-width:40px;text-align:right">+0%</span>
+    </div>
+
+    <div class="s-section">// plane</div>
+    <div class="s-row">
+      <span class="s-label">opacity:</span>
+      <input type="range" id="stereo_plane" min="0" max="1" step="0.01" value="0.12" style="flex:1">
+      <span class="s-val" id="stereo_plane_v">0.12</span>
+    </div>
+
+    <div class="s-section">// colors</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">mid:</span>
+      <input type="color" id="stereo_col_mid" value="#ff88ff">
+      <span class="s-label" style="min-width:0">side:</span>
+      <input type="color" id="stereo_col_side" value="#44ffdd">
+    </div>
+
+    <div class="s-section">// position</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">X:</span>
+      <input type="number" class="inp" id="stereo_offsetX" value="0" step="1" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">Y:</span>
+      <input type="number" class="inp" id="stereo_offsetY" value="0" step="1" style="max-width:52px;flex:1;min-width:44px">
+      <button class="btn" id="stereo_reset_pos" style="font-size:8px;padding:2px 8px">reset</button>
+    </div>
+  `;
+
+  function injectPanel() {
+    const body = document.getElementById('stereoPanelBody');
+    if (!body) return;
+    body.insertAdjacentHTML('beforeend', panelHTML);
+    bindSlider('stereo_decay','stereo_decay_v', v => parseFloat(v).toFixed(3));
+    bindSlider('stereo_zoom', 'stereo_zoom_v',  v => parseFloat(v).toFixed(2));
+    bindSlider('stereo_plane','stereo_plane_v', v => parseFloat(v).toFixed(2));
+
+    document.getElementById('stereo_decay').addEventListener('input', resetTrail);
+
+    const bindPct = (id, vid) => {
+      const s = document.getElementById(id), vl = document.getElementById(vid);
+      if (!s || !vl) return;
+      const upd = () => { vl.textContent = (s.value > 0 ? '+' : '') + s.value + '%'; };
+      s.addEventListener('input', upd); upd();
+    };
+    bindPct('stereo_mid','stereo_mid_v');
+    bindPct('stereo_side','stereo_side_v');
+
+    document.getElementById('stereo_type').addEventListener('change', resetTrail);
+    document.getElementById('stereo_offsetX').addEventListener('input', e => { stereoOX=parseFloat(e.target.value)||0; });
+    document.getElementById('stereo_offsetY').addEventListener('input', e => { stereoOY=parseFloat(e.target.value)||0; });
+    document.getElementById('stereo_reset_pos').addEventListener('click', resetPos);
+    setupDrag();
+  }
+
+  function bindSlider(id, vid, fmt) {
+    const el=document.getElementById(id), vl=document.getElementById(vid);
+    if (!el||!vl) return;
+    const upd=()=>vl.textContent=fmt(el.value);
+    el.addEventListener('input',upd); upd();
+  }
+
+  let lissOffCanvas = null;
+  let corrOffCanvas = null;
+  let polarEnergy   = null;
+  let stereoOX = 0, stereoOY = 0;
+  let corrRingBuf   = [];
+
+  const POLAR_SECTORS = 360;
+  const HALF_PI = Math.PI / 2;
+  const BG = '#030303';
+
+  function resetTrail() {
+    lissOffCanvas = null;
+    corrOffCanvas = null;
+    polarEnergy   = null;
+    corrRingBuf   = [];
+  }
+  function resetPos() {
+    stereoOX=0; stereoOY=0;
+    const ox=document.getElementById('stereo_offsetX'), oy=document.getElementById('stereo_offsetY');
+    if (ox) ox.value=0; if (oy) oy.value=0;
+  }
+
+  let _stereoDragActive = false, _stereoDragSX = 0, _stereoDragSY = 0, _stereoDragSOX = 0, _stereoDragSOY = 0;
+  document.addEventListener('mousemove', e => {
+    if (!_stereoDragActive) return;
+    stereoOX = _stereoDragSOX + (e.clientX - _stereoDragSX);
+    stereoOY = _stereoDragSOY + (e.clientY - _stereoDragSY);
+    const ox=document.getElementById('stereo_offsetX'), oy=document.getElementById('stereo_offsetY');
+    if (ox) ox.value=Math.round(stereoOX); if (oy) oy.value=Math.round(stereoOY);
+  });
+  document.addEventListener('mouseup', () => { _stereoDragActive = false; });
+
+  function setupDrag() {
+    const canvas=document.getElementById('vc2');
+    if (!canvas) { requestAnimationFrame(setupDrag); return; }
+    canvas.style.cursor='move';
+    canvas.addEventListener('mousedown', e => {
+      _stereoDragActive=true; _stereoDragSX=e.clientX; _stereoDragSY=e.clientY;
+      _stereoDragSOX=stereoOX; _stereoDragSOY=stereoOY;
+      e.preventDefault();
+    });
+    canvas.addEventListener('dblclick', resetPos);
+  }
+
+  function hexRGB(hex) {
+    return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+  }
+  function lerpRGB(a, b, t) {
+    t=Math.max(0,Math.min(1,t));
+    return [Math.round(a[0]+(b[0]-a[0])*t), Math.round(a[1]+(b[1]-a[1])*t), Math.round(a[2]+(b[2]-a[2])*t)];
+  }
+  function computeCorr(tdL, tdR) {
+    let s=0;
+    const rL=Math.sqrt(tdL.reduce((a,v)=>a+v*v,0)/tdL.length)+1e-10;
+    const rR=Math.sqrt(tdR.reduce((a,v)=>a+v*v,0)/tdR.length)+1e-10;
+    for (let i=0;i<tdL.length;i++) s+=tdL[i]*tdR[i];
+    return Math.max(-1,Math.min(1,s/(tdL.length*rL*rR)));
+  }
+
+  function getMixedSignal(tdL, tdR, midPct, sidePct) {
+    const midGain  = 1 + (midPct  / 100);
+    const sideGain = 1 + (sidePct / 100);
+    if (midGain === 1 && sideGain === 1) return [tdL, tdR];
+    const n = tdL.length;
+    const outL = new Float32Array(n);
+    const outR = new Float32Array(n);
+    for (let i=0; i<n; i++) {
+      const M = (tdL[i]+tdR[i])*0.5;
+      const S = (tdL[i]-tdR[i])*0.5;
+      outL[i] = M*midGain + S*sideGain;
+      outR[i] = M*midGain - S*sideGain;
+    }
+    return [outL, outR];
+  }
+
+  function planeColor(opVal, alpha = 1) {
+    const v = Math.max(0, Math.min(1, opVal));
+    const g = Math.round(v * 255);
+    const a = Math.min(0.9, v * 0.9) * alpha;
+    return `rgba(${g},${g},${g},${a.toFixed(3)})`;
+  }
+
+  function renderLissajous(ctx, W, H, tdL, tdR, decay, zoom, colMid, colSide, planeOp) {
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+    if (!lissOffCanvas || lissOffCanvas.width!==W || lissOffCanvas.height!==H) {
+      lissOffCanvas=document.createElement('canvas');
+      lissOffCanvas.width=W; lissOffCanvas.height=H;
+      const oc=lissOffCanvas.getContext('2d');
+      oc.fillStyle=BG; oc.fillRect(0,0,W,H);
+    }
+    const off=lissOffCanvas.getContext('2d');
+
+    const inv = (DECAY_MAX + DECAY_MIN) - decay;
+    off.fillStyle=`rgba(3,3,3,${Math.min(1, inv * 3)})`; off.fillRect(0,0,W,H);
+
+    const cx=W/2+stereoOX, cy=H/2+stereoOY;
+    const r=Math.min(W/2,H/2)*0.82*zoom;
+
+    const INV_SQRT2=1/Math.SQRT2;
+    const step=Math.max(1,Math.floor(tdL.length/1024));
+    const rmid=hexRGB(colMid), rside=hexRGB(colSide);
+
+    for (let i=0;i<tdL.length;i+=step) {
+      const l=tdL[i], rv=tdR[i];
+      const sx=(l-rv)*INV_SQRT2, my=(l+rv)*INV_SQRT2;
+      const amp=Math.sqrt(l*l+rv*rv);
+      if (amp<0.0002) continue;
+      const px=cx+sx*r, py=cy-my*r;
+      const absX=Math.abs(sx), absY=Math.abs(my);
+      const ar=absX/(absX+absY+1e-6);
+      const alpha=Math.min(1, amp*10);
+      const rgb=lerpRGB(rmid,rside,ar);
+      off.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+      off.fillRect(px-0.5,py-0.5,1,1);
+    }
+
+    ctx.fillStyle=BG; ctx.fillRect(0,0,W,H);
+    ctx.drawImage(lissOffCanvas,0,0);
+
+    const planeStroke = planeColor(planeOp, 0.9);
+    const planeLabel  = planeColor(planeOp, 1);
+    ctx.strokeStyle = planeStroke; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx-r-12,cy); ctx.lineTo(cx+r+12,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,cy-r-12); ctx.lineTo(cx,cy+r+12); ctx.stroke();
+    ctx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`;
+    ctx.textAlign='center'; ctx.fillStyle = planeLabel;
+    ctx.fillText('L', cx - r - 12, cy - 6);
+    ctx.fillText('R', cx + r + 12, cy - 6);
+    ctx.fillText('M', cx, cy - r - 6);
+    ctx.textAlign='left';
+  }
+
+  function renderPolar(ctx, W, H, tdL, tdR, decay, zoom, colMid, colSide, planeOp) {
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+    if (!polarEnergy) polarEnergy=new Float32Array(POLAR_SECTORS).fill(0);
+
+    const cx=W/2+stereoOX, cy=H/2+stereoOY;
+    const r=Math.min(W/2,H/2)*0.82*zoom;
+
+    const step=Math.max(1,Math.floor(tdL.length/512));
+    for (let i=0;i<tdL.length;i+=step) {
+      const l=tdL[i], rv=tdR[i];
+      const M=(l+rv)*0.5, S=(l-rv)*0.5;
+      const energy=Math.sqrt(M*M+S*S);
+      if (energy<0.0002) continue;
+      const thetaRaw=Math.atan2(S,M);
+      const sectorF=((thetaRaw+Math.PI)/(2*Math.PI))*POLAR_SECTORS;
+      const sector=Math.floor(sectorF) % POLAR_SECTORS;
+      polarEnergy[sector] += energy;
+    }
+
+    const inv = (DECAY_MAX + DECAY_MIN) - decay;
+    const decayMult = Math.max(0, 1 - inv * 0.3);
+    for (let s=0; s<POLAR_SECTORS; s++) {
+      polarEnergy[s] *= decayMult;
+      if (polarEnergy[s] < 0.0001) polarEnergy[s] = 0;
+    }
+
+    ctx.fillStyle=BG; ctx.fillRect(0,0,W,H);
+
+    const planeStroke = planeColor(planeOp, 0.9);
+    const planeLabel  = planeColor(planeOp, 1);
+    ctx.strokeStyle = planeStroke; ctx.lineWidth=1;
+    for (let ri=1;ri<=4;ri++) {
+      ctx.beginPath(); ctx.arc(cx,cy,r*ri/4,0,Math.PI*2); ctx.stroke();
+    }
+    for (let deg=0;deg<360;deg+=45) {
+      const a=(deg-90)*Math.PI/180;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r); ctx.stroke();
+    }
+    ctx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`;
+    ctx.fillStyle = planeLabel; ctx.textAlign='center';
+    ctx.fillText('M', cx, cy - r - 6);
+    ctx.fillText('L', cx - r - 12, cy - 6);
+    ctx.fillText('R', cx + r + 12, cy - 6);
+    ctx.textAlign='left';
+
+    let maxE=1e-6;
+    for (let s=0;s<POLAR_SECTORS;s++) if (polarEnergy[s]>maxE) maxE=polarEnergy[s];
+
+    const rmid=hexRGB(colMid), rside=hexRGB(colSide);
+    const dTheta=(2*Math.PI)/POLAR_SECTORS;
+
+    for (let s=0;s<POLAR_SECTORS;s++) {
+      if (polarEnergy[s]<0.0001) continue;
+      const norm=Math.min(1,polarEnergy[s]/maxE);
+      const thetaRaw=(s/POLAR_SECTORS)*2*Math.PI-Math.PI;
+      const canvasAngle=thetaRaw-HALF_PI;
+      const absRaw=Math.abs(thetaRaw);
+      const ar=absRaw<=HALF_PI ? absRaw/HALF_PI : Math.max(0,1-(absRaw-HALF_PI)/HALF_PI);
+      const rLen=norm*r;
+      const rgb=lerpRGB(rmid,rside,ar);
+      ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.12+norm*0.75})`;
+      ctx.beginPath(); ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,rLen,canvasAngle,canvasAngle+dTheta);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  function renderCorrelation(ctx, W, H, tdL, tdR, corrAvg, corrColor, planeOp) {
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+    if (!corrOffCanvas || corrOffCanvas.width!==W || corrOffCanvas.height!==H) {
+      corrOffCanvas=document.createElement('canvas');
+      corrOffCanvas.width=W; corrOffCanvas.height=H;
+      const oc=corrOffCanvas.getContext('2d');
+      oc.fillStyle=BG; oc.fillRect(0,0,W,H);
+    }
+    const off=corrOffCanvas.getContext('2d');
+    off.drawImage(corrOffCanvas,-1,0);
+    off.fillStyle='rgba(3,3,3,0.3)'; off.fillRect(W-2,0,2,H);
+    const y=H/2+stereoOY-corrAvg*(H/2-10);
+    off.fillStyle=corrColor; off.fillRect(W-2,y-1,2,3);
+    ctx.fillStyle=BG; ctx.fillRect(0,0,W,H);
+    ctx.drawImage(corrOffCanvas,0,0);
+    ctx.strokeStyle = planeColor(planeOp, 0.7); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,H/2+stereoOY); ctx.lineTo(W,H/2+stereoOY); ctx.stroke();
+    ctx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`;
+    ctx.fillStyle = planeColor(planeOp, 1);
+    ctx.textAlign='right';
+    ctx.fillText('+1',W-2,10+stereoOY);
+    ctx.fillText('0', W-2,H/2+4+stereoOY);
+    ctx.fillText('-1',W-2,H-3+stereoOY);
+    ctx.textAlign='left';
+  }
+
+  function draw(tdL, tdR) {
+    const canvas=document.getElementById('vc2'); if (!canvas||!tdL) return;
+    const W=canvas.width, H=canvas.height;
+    const ctx=canvas.getContext('2d');
+
+    const type  =(document.getElementById('stereo_type') ||{value:'lissajous'}).value;
+    const zoom  =parseFloat((document.getElementById('stereo_zoom') ||{value:'1'}).value);
+    const decay =parseFloat((document.getElementById('stereo_decay')||{value:'0.17'}).value);
+    const midPct =parseFloat((document.getElementById('stereo_mid')  ||{value:'0'}).value);
+    const sidePct=parseFloat((document.getElementById('stereo_side') ||{value:'0'}).value);
+    const colMid =(document.getElementById('stereo_col_mid') ||{value:'#ff88ff'}).value;
+    const colSide=(document.getElementById('stereo_col_side')||{value:'#44ffdd'}).value;
+    const planeOp=parseFloat((document.getElementById('stereo_plane')||{value:'0.12'}).value);
+
+    const [mL, mR] = getMixedSignal(tdL, tdR, midPct, sidePct);
+
+    const decayT = (decay - DECAY_MIN) / (DECAY_MAX - DECAY_MIN);
+    const corrWinSec = CORR_WIN_MIN + decayT * (CORR_WIN_MAX - CORR_WIN_MIN);
+    const corrWinFrames = Math.max(1, Math.round(corrWinSec * 30));
+
+    const corrInst = computeCorr(mL, mR);
+    corrRingBuf.push(corrInst);
+    while (corrRingBuf.length > corrWinFrames) corrRingBuf.shift();
+    const corrAvg = corrRingBuf.reduce((a,v)=>a+v,0) / corrRingBuf.length;
+    const corrColor = corrAvg>0.3?colMid:corrAvg>-0.3?'#ffaa00':'#ff3344';
+
+    if      (type==='lissajous') renderLissajous(ctx,W,H,mL,mR,decay,zoom,colMid,colSide,planeOp);
+    else if (type==='polar')     renderPolar(ctx,W,H,mL,mR,decay,zoom,colMid,colSide,planeOp);
+    else                         renderCorrelation(ctx,W,H,mL,mR,corrAvg,corrColor,planeOp);
+
+    const ov=document.getElementById('vo2');
+    if (ov) ov.innerHTML=`<span style="color:${corrColor};font-size:11px;font-family:'Courier New',monospace">${corrAvg.toFixed(3)}</span>`;
+  }
+
+  function onLoad() { resetTrail(); }
+
+  injectPanel();
+  window.VIZ_STEREO = { draw, onLoad, resetTrail, rebindDrag: setupDrag };
+})();
+</script>
+<script>
+(function() {
+  'use strict';
+
+  const RX_OFFSET = -40;
+  const RY_OFFSET = 180;
+  const RZ_OFFSET = 0;
+
+  const RY_FREE = 0;
+
+  const panelHTML = `
+    <div class="s-section">// view</div>
+    <div class="s-row">
+      <span class="s-label">view:</span>
+      <select class="inp" id="spectro_view" style="flex:1">
+        <option value="3d">3d graphic</option>
+        <option value="2d-tf">2d time/freq</option>
+      </select>
+    </div>
+
+    <div class="s-section">// fft</div>
+    <div class="s-row">
+      <span class="s-label">size:</span>
+      <select class="inp" id="spectro_fftsize" style="flex:1">
+        <option value="512">512</option>
+        <option value="1024">1024</option>
+        <option value="2048" selected>2048</option>
+        <option value="4096">4096</option>
+        <option value="8192">8192</option>
+      </select>
+    </div>
+
+    <div class="s-section">// frequency range</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">min:</span>
+      <input type="number" class="inp" id="spectro_fmin" value="20" style="max-width:65px;flex:1;min-width:55px">
+      <span class="s-label" style="min-width:0">max:</span>
+      <input type="number" class="inp" id="spectro_fmax" value="20000" style="max-width:65px;flex:1;min-width:55px">
+    </div>
+
+    <div class="s-section">// time window</div>
+    <div class="s-row">
+      <span class="s-label">window:</span>
+      <input type="range" id="spectro_win" min="2" max="30" step="1" value="8" style="flex:1">
+      <span class="s-val" id="spectro_win_v">8s</span>
+    </div>
+
+    <div class="s-section">// camera</div>
+    <div class="s-row">
+      <span class="s-label">zoom:</span>
+      <input type="range" id="spectro_zoom" min="0.2" max="4" step="0.05" value="2.10" style="flex:1">
+      <span class="s-val" id="spectro_zoom_v">2.10</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">X-axis:</span>
+      <input type="range" id="spectro_rx" min="-212" max="148" step="1" value="-32" style="flex:1">
+      <span class="s-val" id="spectro_rx_v">-32°</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">Y-axis:</span>
+      <input type="range" id="spectro_ry" min="-180" max="180" step="1" value="0" style="flex:1">
+      <span class="s-val" id="spectro_ry_v">0°</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">Z-axis:</span>
+      <input type="range" id="spectro_rz" min="-180" max="180" step="1" value="0" style="flex:1">
+      <span class="s-val" id="spectro_rz_v">0°</span>
+    </div>
+
+    <div class="s-section">// shape</div>
+    <div class="s-row">
+      <span class="s-label">ratio:</span>
+      <input type="range" id="spectro_ratio" min="0" max="1" step="0.01" value="0.5" style="flex:1">
+      <span class="s-val" id="spectro_ratio_v">0.50</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">height:</span>
+      <input type="range" id="spectro_hscale" min="0" max="2" step="0.01" value="1" style="flex:1">
+      <span class="s-val" id="spectro_hscale_v">1.00</span>
+    </div>
+    <div class="s-row">
+      <span class="s-label">axes opacity:</span>
+      <input type="range" id="spectro_axes_opacity" min="0" max="1" step="0.05" value="1" style="flex:1">
+      <span class="s-val" id="spectro_axes_opacity_v">1.00</span>
+    </div>
+
+    <div class="s-section">// color dB range</div>
+    <div class="s-row">
+      <span class="s-label">dB min:</span>
+      <input type="number" class="inp" id="spectro_dbmin" value="-80" min="-144" max="-10" step="6" style="max-width:52px">
+      <span class="s-label" style="min-width:28px">max:</span>
+      <input type="number" class="inp" id="spectro_dbmax" value="0" min="-20" max="6" step="1" style="max-width:52px">
+    </div>
+
+    <div class="s-section">// frequency colors</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">low:</span>
+      <input type="color" id="spectro_c_low" value="#0033ff">
+      <span class="s-label" style="min-width:0">mid:</span>
+      <input type="color" id="spectro_c_mid" value="#ff4400">
+      <span class="s-label" style="min-width:0">high:</span>
+      <input type="color" id="spectro_c_high" value="#ffff00">
+    </div>
+
+    <div class="s-section">// position</div>
+    <div class="s-row" style="flex-wrap:wrap;gap:4px">
+      <span class="s-label" style="min-width:0">X:</span>
+      <input type="number" class="inp" id="spectro_offsetX" value="0" step="1" style="max-width:52px;flex:1;min-width:44px">
+      <span class="s-label" style="min-width:0">Y:</span>
+      <input type="number" class="inp" id="spectro_offsetY" value="21" step="1" style="max-width:52px;flex:1;min-width:44px">
+      <button class="btn" id="spectro_reset_pos" style="font-size:8px;padding:2px 8px">reset</button>
+    </div>
+  `;
+
+  function injectPanel() {
+    const body=document.getElementById('spectroPanelBody'); if(!body) return;
+    body.insertAdjacentHTML('beforeend',panelHTML);
+
+    bindSlider('spectro_win',   'spectro_win_v',   v=>v+'s');
+    document.getElementById('spectro_win').addEventListener('input', () => {
+      const newMax = Math.max(1, Math.round(parseFloat(document.getElementById('spectro_win').value) * APPROX_FPS));
+      if (spectroHistory.length > newMax) spectroHistory = spectroHistory.slice(-newMax);
+    });
+    bindSlider('spectro_zoom',  'spectro_zoom_v',  v=>parseFloat(v).toFixed(2));
+    bindSlider('spectro_rx',    'spectro_rx_v',    v=>v+'°');
+    bindSlider('spectro_ry',    'spectro_ry_v',    v=>v+'°');
+    bindSlider('spectro_rz',    'spectro_rz_v',    v=>v+'°');
+    bindSlider('spectro_ratio',  'spectro_ratio_v',  v=>parseFloat(v).toFixed(2));
+    bindSlider('spectro_hscale', 'spectro_hscale_v', v=>parseFloat(v).toFixed(2));
+    bindSlider('spectro_axes_opacity', 'spectro_axes_opacity_v', v=>parseFloat(v).toFixed(2));
+
+    if(RY_FREE===1)(function(){
+      const RY_ALLOWED=[-120,-60,60,120];
+      const ryEl=document.getElementById('spectro_ry');
+      if(ryEl) ryEl.addEventListener('input',()=>{
+        const v=parseInt(ryEl.value);
+        const snapped=RY_ALLOWED.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
+        if(parseInt(ryEl.value)!==snapped){ ryEl.value=snapped; ryEl.dispatchEvent(new Event('input')); }
+      });
+    })();
+
+    ['spectro_rx','spectro_ry','spectro_rz'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      el.addEventListener('dblclick',()=>{
+        el.value = (id === 'spectro_rx') ? -32 : 0;
+        el.dispatchEvent(new Event('input'));
+        spectroHistory=[];
+      });
+    });
+
+    document.getElementById('spectro_fftsize').addEventListener('change',()=>{
+      const size=parseInt(document.getElementById('spectro_fftsize').value);
+      const av=window.AV;
+      if(av&&av.analyserL&&av.analyserR){
+        try{av.analyserL.fftSize=size;av.analyserR.fftSize=size;av.fdL=null;av.fdR=null;}catch(e){}
+      }
+      spectroHistory=[];
+    });
+
+    document.getElementById('spectro_offsetX').addEventListener('input',e=>{spectroOX=parseFloat(e.target.value)||0;});
+    document.getElementById('spectro_offsetY').addEventListener('input',e=>{spectroOY=parseFloat(e.target.value)||0;});
+    document.getElementById('spectro_reset_pos').addEventListener('click',resetPos);
+    setupDrag();
+
+    const oxEl=document.getElementById('spectro_offsetX'),oyEl=document.getElementById('spectro_offsetY');
+    if(oxEl) spectroOX = parseFloat(oxEl.value)||0;
+    if(oyEl) spectroOY = parseFloat(oyEl.value)||0;
+  }
+
+  function bindSlider(id,vid,fmt){
+    const el=document.getElementById(id),vl=document.getElementById(vid);
+    if(!el||!vl) return;
+    const upd=()=>vl.textContent=fmt(el.value);
+    el.addEventListener('input',upd); upd();
+  }
+
+  let spectroHistory=[];
+  let spectroOX=0, spectroOY=21;
+  let _offC=null;
+  let _offCtx=null;
+  const FBINS=128, APPROX_FPS=30;
+  const BG_COLOR='#010101';
+
+  function resetPos(){
+    spectroOX=0; spectroOY=21;
+    const ox=document.getElementById('spectro_offsetX'),oy=document.getElementById('spectro_offsetY');
+    if(ox) ox.value=0; if(oy) oy.value=21;
+  }
+
+  function ensureOffscreen(W, H) {
+    if (_offC && _offC.width === W && _offC.height === H) return;
+    _offC = document.createElement('canvas');
+    _offC.width = W; _offC.height = H;
+    _offCtx = _offC.getContext('2d', {alpha: false});
+    _offCtx.fillStyle = BG_COLOR;
+    _offCtx.fillRect(0, 0, W, H);
+  }
+
+  let _spectroDragActive = false, _spectroDragSX = 0, _spectroDragSY = 0, _spectroDragSOX = 0, _spectroDragSOY = 0;
+  document.addEventListener('mousemove', e => {
+    if (!_spectroDragActive) return;
+    spectroOX = _spectroDragSOX + (e.clientX - _spectroDragSX);
+    spectroOY = _spectroDragSOY + (e.clientY - _spectroDragSY);
+    const ox=document.getElementById('spectro_offsetX'),oy=document.getElementById('spectro_offsetY');
+    if(ox) ox.value=Math.round(spectroOX); if(oy) oy.value=Math.round(spectroOY);
+  });
+  document.addEventListener('mouseup', () => { _spectroDragActive = false; });
+
+  function setupDrag(){
+    const canvas=document.getElementById('vc3');
+    if(!canvas){requestAnimationFrame(setupDrag);return;}
+    canvas.style.cursor='move';
+    canvas.addEventListener('mousedown',e=>{
+      _spectroDragActive=true; _spectroDragSX=e.clientX; _spectroDragSY=e.clientY;
+      _spectroDragSOX=spectroOX; _spectroDragSOY=spectroOY;
+      e.preventDefault();
+    });
+    canvas.addEventListener('dblclick',resetPos);
+  }
+
+  function hexRGB(hex){return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
+  function lerpRGB(a,b,t){t=Math.max(0,Math.min(1,t));return[Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t)];}
+  function gn(id,def){const e=document.getElementById(id);if(!e)return def;const v=parseFloat(e.value);return isNaN(v)?def:v;}
+  function gs(id,def){const e=document.getElementById(id);return e?e.value:def;}
+
+  function byteToDB(v){return -100+(v/255)*100;}
+  function byteToIntensity(v,dbMin,dbMax,ratio){
+    const db=byteToDB(v);
+    const t=Math.max(0,Math.min(1,(db-dbMin)/(dbMax-dbMin)));
+    const tExp=Math.pow(t,Math.max(0.05,1-ratio*0.9));
+    return t*(1-ratio)+tExp*ratio;
+  }
+  function freqColor(freqT,intensity,cLow,cMid,cHigh){
+    const rL=hexRGB(cLow),rM=hexRGB(cMid),rH=hexRGB(cHigh);
+    let rgb;
+    if(freqT<0.5) rgb=lerpRGB(rL,rM,freqT*2);
+    else          rgb=lerpRGB(rM,rH,(freqT-0.5)*2);
+    const s=intensity;
+    return[Math.round(rgb[0]*s),Math.round(rgb[1]*s),Math.round(rgb[2]*s)];
+  }
+
+  function getFreqMarkers(fmin,fmax){
+    const marks=[20,50,100,200,500,1000,2000,5000,10000,20000];
+    return marks.filter(f=>f>=fmin&&f<=fmax);
+  }
+
+  function makeProjector(W,H,rxDisp,ryDisp,rzDisp,zoom){
+    const toRad=d=>d*Math.PI/180;
+    const RX=toRad(rxDisp+RX_OFFSET);
+    const RY=toRad(ryDisp+RY_OFFSET);
+    const RZ=toRad(rzDisp+RZ_OFFSET);
+    const cosX=Math.cos(RX),sinX=Math.sin(RX);
+    const cosY=Math.cos(RY),sinY=Math.sin(RY);
+    const cosZ=Math.cos(RZ),sinZ=Math.sin(RZ);
+    const cx=W/2+spectroOX, cy=H/2+spectroOY;
+    return function project(tx,ty,tz){
+      let x=(tx-0.5)*2;
+      let y=ty*1.4-0.4;
+      let z=(tz-0.5)*2;
+      let x1= x*cosY+z*sinY, z1=-x*sinY+z*cosY, y1=y;
+      let y2= y1*cosX-z1*sinX, z2=y1*sinX+z1*cosX, x2=x1;
+      let x3= x2*cosZ-y2*sinZ, y3=x2*sinZ+y2*cosZ, z3=z2;
+      const d=Math.max(0.1,z3+3.0);
+      const persp=1/d;
+      return[cx+x3*W*0.38*persp*zoom, cy-y3*H*0.48*persp*zoom, z3];
+    };
+  }
+
+  function drawAxes3D(offCtx, project, W, H, opacity){
+    if (opacity <= 0) return;
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+    const O=project(0.5,0,0.5);
+    const T=project(1.0,0,0.5);
+    const F=project(0.5,0,1.0);
+    const A=project(0.5,0.7,0.5);
+    function ax(from,to,color,lbl){
+      offCtx.globalAlpha = opacity;
+      offCtx.strokeStyle=color; offCtx.lineWidth=1.5;
+      offCtx.beginPath(); offCtx.moveTo(from[0],from[1]); offCtx.lineTo(to[0],to[1]); offCtx.stroke();
+      offCtx.fillStyle=color;
+      offCtx.beginPath(); offCtx.arc(to[0],to[1],3,0,Math.PI*2); offCtx.fill();
+      offCtx.font=`${Math.round(11*fScale)}px 'Courier New', monospace`;
+      offCtx.fillText(lbl,to[0]+4,to[1]+3);
+    }
+    ax(O,T,'#ffaa00','T');
+    ax(O,F,'#00ccff','F');
+    ax(O,A,'#00ff88','dB');
+    offCtx.globalAlpha = 1;
+  }
+
+  function draw(fdL){
+    const canvas=document.getElementById('vc3'); if(!canvas||!fdL) return;
+    const W=canvas.width, H=canvas.height;
+    if(W<2||H<2) return;
+    const ctx=canvas.getContext('2d');
+    const av=window.AV; if(!av||!av.audioCtx) return;
+
+    const fScale = Math.max(0.55, Math.min(1.6, Math.sqrt(H/270)));
+
+    const view    =gs('spectro_view','3d');
+    const fmin    =Math.max(1,gn('spectro_fmin',20));
+    const fmax    =Math.min(av.audioCtx.sampleRate/2,gn('spectro_fmax',20000));
+    const winSec  =gn('spectro_win',8);
+    const zoom    =gn('spectro_zoom',2.10)||2.10;
+    const rxDisp  =gn('spectro_rx',-32);
+    const ryDisp  =gn('spectro_ry',0);
+    const rzDisp  =gn('spectro_rz',0);
+    const axesOp  =gn('spectro_axes_opacity',1);
+    const dbMin   =gn('spectro_dbmin',-80);
+    const dbMax   =gn('spectro_dbmax',0);
+    const ratio   =gn('spectro_ratio',0.5);
+    const hScale  =gn('spectro_hscale',1);
+    const cLow    =gs('spectro_c_low','#0033ff');
+    const cMid    =gs('spectro_c_mid','#ff4400');
+    const cHigh   =gs('spectro_c_high','#ffff00');
+
+    const sr=av.audioCtx.sampleRate, nyq=sr/2, bins=fdL.length;
+    const maxFrames=Math.max(1,Math.round(winSec*APPROX_FPS));
+
+    const col=new Uint8Array(FBINS);
+    for(let fi=0;fi<FBINS;fi++){
+      const f=fmin*Math.pow(fmax/fmin,fi/FBINS);
+      const b=Math.max(0,Math.min(bins-1,Math.round((f/nyq)*bins)));
+      col[fi]=fdL[b];
+    }
+    spectroHistory.push(col);
+    while(spectroHistory.length>maxFrames) spectroHistory.shift();
+
+    const nCols=spectroHistory.length; if(nCols===0) return;
+
+    ctx.fillStyle=BG_COLOR;
+    ctx.fillRect(0,0,W,H);
+
+    if(view==='2d-tf'){
+      const cw=W/Math.max(nCols,1), ch=H/FBINS;
+      for(let ci=0;ci<nCols;ci++){
+        const cd=spectroHistory[ci];
+        for(let fi=0;fi<FBINS;fi++){
+          const intensity=byteToIntensity(cd[fi],dbMin,dbMax,ratio);
+          if(intensity<0.01) continue;
+          const rgb=freqColor(fi/(FBINS-1),intensity,cLow,cMid,cHigh);
+          ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+          ctx.fillRect(ci*cw,H-(fi+1)*ch,cw+1,ch+1);
+        }
+      }
+      ctx.font=`${Math.round(10*fScale)}px 'Courier New', monospace`;
+      const freqMarkers=getFreqMarkers(fmin,fmax);
+      freqMarkers.forEach(f=>{
+        const freqT=Math.log(f/fmin)/Math.log(fmax/fmin);
+        const y=H-(freqT*(FBINS-1)/FBINS)*H;
+        if(y<4||y>H-4) return;
+        ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+        const label=f>=1000?(f/1000).toFixed(f>=10000?0:1)+'k':Math.round(f)+'';
+        ctx.fillStyle='#666'; ctx.textAlign='left';
+        ctx.fillText(label,3,y-2);
+      });
+
+    } else {
+      ensureOffscreen(W, H);
+      const offCtx = _offCtx;
+
+      offCtx.fillStyle=BG_COLOR;
+      offCtx.fillRect(0,0,W,H);
+
+      const project=makeProjector(W,H,rxDisp,ryDisp,rzDisp,zoom);
+
+      drawAxes3D(offCtx, project, W, H, axesOp);
+
+      const maxCols=Math.min(nCols,maxFrames);
+      const startI=nCols-maxCols;
+
+      const allInts=[];
+      for(let ci=0;ci<maxCols;ci++){
+        const cd=spectroHistory[startI+ci];
+        const ints=new Float32Array(FBINS);
+        for(let fi=0;fi<FBINS;fi++) ints[fi]=byteToIntensity(cd[fi],dbMin,dbMax,ratio);
+        allInts.push(ints);
+      }
+
+      const p0ref=project(0,0,0.5);
+      const p1ref=project(1,0,0.5);
+      const txFwdOrder = p0ref[2] >= p1ref[2];
+
+      const pFlo=project(0.5,0,0);
+      const pFhi=project(0.5,0,1);
+      const fiFwdOrder = pFlo[2] >= pFhi[2];
+      const fiTot=FBINS-1;
+
+      offCtx.lineWidth=1;
+
+      const H_CAP = 5;
+      for(let fii=0;fii<fiTot;fii++){
+        const fi = fiFwdOrder ? fii : (fiTot-1-fii);
+        const freqT0=fi/(FBINS-1), freqT1=(fi+1)/(FBINS-1);
+
+        for(let cii=0;cii<maxCols;cii++){
+          const ci = txFwdOrder ? cii : (maxCols-1-cii);
+          const tx=ci/Math.max(maxCols-1,1);
+          const ints=allInts[ci];
+          const i0=ints[fi], i1=ints[fi+1];
+          if(i0<0.015&&i1<0.015) continue;
+          const p0=project(tx, Math.min(H_CAP, i0*hScale), freqT0);
+          const p1=project(tx, Math.min(H_CAP, i1*hScale), freqT1);
+          const rgb=freqColor(freqT0,Math.max(i0,i1),cLow,cMid,cHigh);
+          offCtx.strokeStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+          offCtx.beginPath(); offCtx.moveTo(p0[0],p0[1]); offCtx.lineTo(p1[0],p1[1]); offCtx.stroke();
+        }
+      }
+
+      ctx.drawImage(_offC,0,0);
+    }
+  }
+
+  function onLoad(){spectroHistory=[];}
+
+  injectPanel();
+  window.VIZ_SPECTRUM={draw,onLoad,rebindDrag:setupDrag};
+})();
+</script>
+
+<script>
+/* preload: eclectic-preview.mp3 in saved-audio history + auto-load */
+(function(){
+  var NAME = 'In my head (mix).mp3';
+  var SRC  = 'audio/in-my-head.mp3';
+  // Skip quando HTML aperto via file:// (download offline): path assoluto
+  // /audio/... non risolve, fetch fallisce con "Failed to fetch".
+  if (location.protocol === 'file:') return;
+  function boot(){
+    try {
+      if (typeof saveToHistory === 'function' && Array.isArray(audioHistory)) {
+        if (!audioHistory.some(function(i){ return i && i.name === NAME; })) {
+          saveToHistory(NAME, SRC);
+        }
+      }
+      if (typeof renderAudioHistory === 'function') renderAudioHistory();
+      if (typeof loadFromDataUrl === 'function') loadFromDataUrl(SRC, NAME);
+    } catch(e) {}
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+})();
+</script>
+
+<!-- SEM Brana — bridge coordinamento audio cross-plugin (additivo, non
+     modifica la logica dell'app). Vedi src/plugins/audioBus.ts. -->
+<script>
+(function () {
+  function send(action) {
+    try { parent.postMessage({ __sembranaAudio: true, action: action }, '*'); } catch (e) {}
+  }
+  // Watcher di stato: rileva ogni transizione play↔stop (play/pause/stop/
+  // fine naturale/seek) senza toccare le funzioni dell'app.
+  var last = false;
+  setInterval(function () {
+    var p = !!(window.AV && window.AV.isPlaying);
+    if (p !== last) { last = p; send(p ? 'started' : 'stopped'); }
+  }, 150);
+  // Il parent chiede lo stop quando parte un altro player.
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (d && d.__sembranaAudioCtl === 'stop') {
+      try {
+        if (window.AV && window.AV.isPlaying && typeof pausePlayback === 'function') {
+          pausePlayback();
+        }
+      } catch (_) {}
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
