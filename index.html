@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <!--
-  ciao! sono SEM Brana e questo è il multi metering che ho fatto. è un progetto opensource, puoi tranquillamente modificare il codice come preferisci (a tuo rischio e pericolo). è proibita la vendita anche parziale del codice.
-  se il metering ti piace ti chiedo solo un favore: dai un ascolto alla mia musica, potrebbe piacerti :)
+  multimeter: studio-style audio analyzer in a single HTML file.
+  (c) 2026 Saverio Moretti. MIT License, see LICENSE.
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEM Brana // audio visualizer</title>
+<title>multimeter — audio analyzer</title>
 
 <style>
 :root {
@@ -3461,34 +3461,6 @@ setTimeout(() => {
   }
   if (document.readyState === 'complete') boot();
   else window.addEventListener('load', boot);
-})();
-</script>
-
-<!-- SEM Brana — bridge coordinamento audio cross-plugin (additivo, non
-     modifica la logica dell'app). Vedi src/plugins/audioBus.ts. -->
-<script>
-(function () {
-  function send(action) {
-    try { parent.postMessage({ __sembranaAudio: true, action: action }, '*'); } catch (e) {}
-  }
-  // Watcher di stato: rileva ogni transizione play↔stop (play/pause/stop/
-  // fine naturale/seek) senza toccare le funzioni dell'app.
-  var last = false;
-  setInterval(function () {
-    var p = !!(window.AV && window.AV.isPlaying);
-    if (p !== last) { last = p; send(p ? 'started' : 'stopped'); }
-  }, 150);
-  // Il parent chiede lo stop quando parte un altro player.
-  window.addEventListener('message', function (e) {
-    var d = e.data;
-    if (d && d.__sembranaAudioCtl === 'stop') {
-      try {
-        if (window.AV && window.AV.isPlaying && typeof pausePlayback === 'function') {
-          pausePlayback();
-        }
-      } catch (_) {}
-    }
-  });
 })();
 </script>
 

@@ -1,6 +1,6 @@
 # multimeter — guida rapida
 
-ciao, sono SEM Brana e questo è il multimetro che ho progettato, un visualizzatore audio in tempo reale che gira direttamente nel browser. Basta aprire `index.html` (o avviare un server locale) e caricare un file audio o video, nessuna installazione necessaria. ti ringrazio per averlo scaricato e se ti va di aiutarmi a crescere seguimi nei social e ascolta la musica che pubblico!
+Visualizzatore audio in tempo reale che gira direttamente nel browser. Basta aprire `index.html` (o avviare un server locale) e caricare un file audio o video: nessuna installazione.
 
 ---
 

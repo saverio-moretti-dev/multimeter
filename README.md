@@ -29,5 +29,9 @@ Demo track: «In my head (mix)» by SEM Brana, included for the demo only.
 
 ---
 
+## License
+
+MIT, see [LICENSE](LICENSE). The demo track is not covered by the license.
+
 ## Italiano
 Analizzatore audio da studio in un solo file HTML, senza installazione: carichi un file audio o video e quattro moduli lo misurano in tempo reale (livelli L/R e Mid/Side con LUFS, analizzatore di frequenze, campo stereo, spettrogramma 2D e 3D). Tutto gira nel browser con la Web Audio API e Canvas, niente viene caricato in rete. Guida completa: [`LEGGIMI.md`](LEGGIMI.md).
