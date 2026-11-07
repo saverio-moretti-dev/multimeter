@@ -3464,5 +3464,47 @@ setTimeout(() => {
 })();
 </script>
 
+<style>
+.tip{position:fixed;left:0;top:0;visibility:hidden;z-index:9999;max-width:min(270px,calc(100vw - 16px));padding:9px 12px;border-radius:8px;background:#62c7bf;color:#101215;font:600 13px/1.35 system-ui,sans-serif;pointer-events:none;opacity:0;transition:opacity .3s}
+.tip.show{opacity:1}
+.tip::before{content:"";position:absolute;width:10px;height:10px;background:inherit;transform:rotate(45deg)}
+.tip.l::before{left:-5px;top:calc(var(--a) - 5px)}
+.tip.r::before{right:-5px;top:calc(var(--a) - 5px)}
+.tip.u::before{top:-5px;left:calc(var(--a) - 5px)}
+.tip.c{font-size:17px;padding:12px 20px}
+.tip.c::before{display:none}
+@keyframes tutp{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(98,199,191,.7)}50%{transform:scale(1.18);box-shadow:0 0 0 6px rgba(98,199,191,0)}}
+.tut-pulse{animation:tutp 1s ease-in-out infinite}
+.tut-glow{box-shadow:inset 0 0 0 2px rgba(98,199,191,.8)}
+</style>
+<div class="tip l" aria-live="polite">Press play to start</div>
+<div class="tip u" aria-live="polite">Control the track here: try pausing it or setting a loop</div>
+<div class="tip r" aria-live="polite">Every module has many settings you can change here. Scroll to see them all</div>
+<div class="tip c" aria-live="polite">Have fun!</div>
+<script>
+/* first-visit tutorial: three hints in sequence (play, track controls, settings panel),
+   then it switches itself off and does not come back (localStorage) */
+(()=>{const tips=[...document.querySelectorAll('.tip')],$=id=>document.getElementById(id);
+let step=-1,on=true;try{on=localStorage.getItem('tutorial')!=='no'}catch(e){}
+if(!on)return;
+const setStep=k=>{step=k;tips.forEach((t,j)=>t.classList.toggle('show',j===k));
+  $('btnPlay').classList.toggle('tut-pulse',k===0);['btnPause','btnLoop'].forEach(id=>$(id).classList.toggle('tut-pulse',k===1));$('rightCol').classList.toggle('tut-glow',k===2);
+  if(k===3)setTimeout(()=>{if(step===3){setStep(4);try{localStorage.setItem('tutorial','no')}catch(e){}}},2000)};
+['btnPause','btnLoop'].forEach(id=>$(id).addEventListener('click',()=>{if(step===1)setStep(2)}));
+$('rightScroll').addEventListener('scroll',()=>{if(step===2)setStep(3)},{passive:true});
+const place=(t,x,y,side)=>{const W=innerWidth,H=innerHeight,w=t.offsetWidth,h=t.offsetHeight;
+  let l=side==='l'?x+12:side==='r'?x-12-w:side==='c'?x-w/2:x-20,tp=side==='u'?y+12:y-h/2;
+  l=Math.max(8,Math.min(l,W-8-w));tp=Math.max(8,Math.min(tp,H-8-h));
+  t.style.transform=`translate(${l}px,${tp}px)`;t.style.visibility='visible';t.style.setProperty('--a',(side==='u'?x-l:y-tp)+'px')};
+const loop=()=>{const R=id=>$(id).getBoundingClientRect();
+  if(step===0&&AV.isPlaying)setStep(1);
+  if(step===0){const r=R('btnPlay');place(tips[0],r.right,(r.top+r.bottom)/2,'l')}
+  if(step===1){const r=R('btnPause'),c=R('tlControls');place(tips[1],(r.left+r.right)/2,c.bottom,'u')}
+  if(step===2){const r=R('rightCol');place(tips[2],r.left,r.top+60,'r')}
+  if(step===3)place(tips[3],innerWidth/2,innerHeight/2,'c');
+  if(step>=0&&step<4)requestAnimationFrame(loop)};
+addEventListener('load',()=>{setStep(0);loop()})})();
+</script>
+
 </body>
 </html>
