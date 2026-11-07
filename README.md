@@ -4,6 +4,8 @@ A studio-style audio analyzer in a single HTML file. No install, no build, no de
 
 **Try it:** https://saverio-moretti-dev.github.io/multimeter/ (a demo track is preloaded; press play).
 
+![multimeter playing the demo track: waveform timeline, level meters, spectrum, stereo field and 3D spectrogram, settings panel on the right](docs/screenshot.png)
+
 ## What it does
 - **Levels**: L/R and Mid/Side meters, loudness in LUFS.
 - **Spectrum analyzer**: FFT over frequency.
