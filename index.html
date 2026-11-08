@@ -516,6 +516,121 @@ window.AV = {
   loopEnd: 0,
 };
 
+/* ── Loudness, ITU-R BS.1770-4 / EBU R128 ──────────────────────────────
+   An AudioWorklet K-weights every sample (the two BS.1770 biquads, computed
+   for the context's sample rate) and posts the mean square of each 100 ms
+   block, summed over the channels. The windows are counted in blocks, so
+   they last 400 ms and 3 s of audio whatever the screen refresh rate.
+   Momentary = last 4 blocks, short-term = last 30, integrated = 400 ms gating
+   blocks with 75% overlap, absolute gate -70 LUFS, relative gate -10 LU. */
+const LOUD_WORKLET_SRC = `
+class KLoudness extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    const fs = sampleRate;
+    let f0 = 1681.974450955533, G = 3.999843853973347, Q = 0.7071752369554196;
+    let K = Math.tan(Math.PI * f0 / fs);
+    const Vh = Math.pow(10, G / 20), Vb = Math.pow(Vh, 0.4996667741545416);
+    let a0 = 1 + K / Q + K * K;
+    this.s1 = [(Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0,
+               2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+    f0 = 38.13547087602444; Q = 0.5003270373238773; K = Math.tan(Math.PI * f0 / fs);
+    a0 = 1 + K / Q + K * K;
+    this.s2 = [1, -2, 1, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+    this.blockLen = Math.round(fs * 0.1);
+    this.n = 0;
+    this.sum = [0, 0];
+    this.z = [new Float64Array(4), new Float64Array(4)];
+  }
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || input.length === 0) return true;
+    const len = input[0].length, chs = Math.min(2, input.length);
+    const [b0, b1, b2, a1, a2] = this.s1, [c0, c1, c2, d1, d2] = this.s2;
+    let i = 0;
+    while (i < len) {
+      const take = Math.min(len - i, this.blockLen - this.n);
+      for (let c = 0; c < chs; c++) {
+        const x = input[c], z = this.z[c];
+        let w1 = z[0], w2 = z[1], v1 = z[2], v2 = z[3], acc = 0;
+        for (let k = i; k < i + take; k++) {
+          const w = x[k] - a1 * w1 - a2 * w2;
+          const y = b0 * w + b1 * w1 + b2 * w2; w2 = w1; w1 = w;
+          const v = y - d1 * v1 - d2 * v2;
+          const o = c0 * v + c1 * v1 + c2 * v2; v2 = v1; v1 = v;
+          acc += o * o;
+        }
+        z[0] = w1; z[1] = w2; z[2] = v1; z[3] = v2;
+        this.sum[c] += acc;
+      }
+      this.n += take; i += take;
+      if (this.n === this.blockLen) {
+        this.port.postMessage((this.sum[0] + this.sum[1]) / this.blockLen);
+        this.n = 0; this.sum[0] = 0; this.sum[1] = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('k-loudness', KLoudness);
+`;
+
+const LOUD = {
+  ready: false,
+  blocks: [],   // mean square of the last 30 blocks of 100 ms
+  gating: [],   // mean square of every 400 ms gating block (one per 100 ms)
+  integrated: -Infinity,
+  sinceUpdate: 0,
+};
+const loudLufs = ms => ms > 0 ? -0.691 + 10 * Math.log10(ms) : -Infinity;
+const loudMean = arr => { let s = 0; for (let i = 0; i < arr.length; i++) s += arr[i]; return s / arr.length; };
+
+function loudReset() {
+  LOUD.blocks = []; LOUD.gating = []; LOUD.integrated = -Infinity; LOUD.sinceUpdate = 0;
+}
+
+function loudIntegrated(gating) {
+  const abs = gating.filter(ms => loudLufs(ms) > -70);
+  if (!abs.length) return -Infinity;
+  const rel = loudLufs(loudMean(abs)) - 10;
+  const kept = abs.filter(ms => loudLufs(ms) > rel);
+  return kept.length ? loudLufs(loudMean(kept)) : -Infinity;
+}
+
+function loudAddBlock(ms) {
+  LOUD.blocks.push(ms);
+  if (LOUD.blocks.length > 30) LOUD.blocks.shift();
+  if (LOUD.blocks.length >= 4) LOUD.gating.push(loudMean(LOUD.blocks.slice(-4)));
+  if (++LOUD.sinceUpdate >= 10) { LOUD.sinceUpdate = 0; LOUD.integrated = loudIntegrated(LOUD.gating); }
+}
+
+function loudValues() {
+  const b = LOUD.blocks;
+  return {
+    momentary: b.length >= 4 ? loudLufs(loudMean(b.slice(-4))) : -Infinity,
+    shortTerm: b.length >= 30 ? loudLufs(loudMean(b)) : -Infinity,
+    integrated: LOUD.integrated,
+  };
+}
+
+async function setupLoudness(ctx, sourceNode) {
+  try {
+    const url = URL.createObjectURL(new Blob([LOUD_WORKLET_SRC], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+    const node = new AudioWorkletNode(ctx, 'k-loudness', {
+      numberOfInputs: 1, numberOfOutputs: 0,
+      channelCount: 2, channelCountMode: 'clamped-max', channelInterpretation: 'discrete',
+    });
+    // Blocks that arrive while paused are silence: they are not part of the programme.
+    node.port.onmessage = e => { if (window.AV.isPlaying) loudAddBlock(e.data); };
+    sourceNode.connect(node);
+    LOUD.ready = true;
+  } catch (err) {
+    console.warn('loudness meter unavailable:', err);
+  }
+}
+
 function initAudio() {
   if (window.AV.audioCtx) return;
   window.AV.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -523,6 +638,7 @@ function initAudio() {
 
   window.AV.gainNodeIn  = ctx.createGain(); window.AV.gainNodeIn.gain.value  = 1.0;
   window.AV.gainNodeOut = ctx.createGain(); window.AV.gainNodeOut.gain.value = 1.0;
+  setupLoudness(ctx, window.AV.gainNodeIn);
 
   const splitter = ctx.createChannelSplitter(2);
   const merger   = ctx.createChannelMerger(2);
@@ -1862,18 +1978,7 @@ setTimeout(() => {
   let peakHoldFixed = false;
   let volOffsetY = 0;
 
-  let lufsRingMom   = [];
-  let lufsRingST    = [];
-  let lufsGatedBuf  = [];
-  let lufsIntVal    = -Infinity;
-  let lufsIntFrames = 0;
 
-  const LUFS_FPS        = 30;
-  const LUFS_MOM_FRAMES = Math.round(0.4 * LUFS_FPS);
-  const LUFS_ST_FRAMES  = Math.round(3.0 * LUFS_FPS);
-  const LUFS_INT_UPDATE = Math.round(1.0 * LUFS_FPS);
-  const LUFS_ABS_GATE   = -70;
-  const LUFS_MAX_BUF    = LUFS_FPS * 60 * 5;
 
   let rmsRing       = [];
   let volPeakVal    = -Infinity;
@@ -1933,11 +2038,6 @@ setTimeout(() => {
     if(!ring.length) return -Infinity;
     let s=0; for(let i=0;i<ring.length;i++) s+=ring[i].val;
     return s/ring.length;
-  }
-  function lufsAvgPower(ring) {
-    if(!ring.length) return -Infinity;
-    let sum=0; for(let i=0;i<ring.length;i++) sum+=Math.pow(10,ring[i]/10);
-    return 10*Math.log10(sum/ring.length);
   }
   function rmsStereo(arrL, arrR) {
     let s=0; const n=arrL.length;
@@ -2025,18 +2125,8 @@ setTimeout(() => {
       smoothedST = resp * smoothedST + (1-resp) * rmsST;
     }
 
-    lufsRingMom.push(rmsST); if(lufsRingMom.length>LUFS_MOM_FRAMES) lufsRingMom.shift();
-    lufsRingST.push(rmsST);  if(lufsRingST.length>LUFS_ST_FRAMES)   lufsRingST.shift();
-    if(rmsST>LUFS_ABS_GATE){lufsGatedBuf.push(rmsST);if(lufsGatedBuf.length>LUFS_MAX_BUF)lufsGatedBuf.shift();}
-    lufsIntFrames++;
-    if(lufsIntFrames>=LUFS_INT_UPDATE && lufsGatedBuf.length>0){
-      lufsIntFrames=0;
-      const ungatedAvg=lufsAvgPower(lufsGatedBuf);
-      const relGate=ungatedAvg-10;
-      const relGated=lufsGatedBuf.filter(v=>v>relGate);
-      lufsIntVal=relGated.length>0?lufsAvgPower(relGated):lufsAvgPower(lufsGatedBuf);
-    }
-    const lufsMom=lufsAvgPower(lufsRingMom), lufsShort=lufsAvgPower(lufsRingST), lufsInt=lufsIntVal;
+    const loud=loudValues();
+    const lufsMom=loud.momentary, lufsShort=loud.shortTerm, lufsInt=loud.integrated;
 
     const avgMs = avgSec * 1000;
     rmsRing.push({ val: rmsST, t: nowMs });
@@ -2183,15 +2273,11 @@ setTimeout(() => {
     ctx.textAlign='left';
   }
 
-  function resetLoud() {
-    lufsRingMom=[]; lufsRingST=[]; lufsGatedBuf=[];
-    lufsIntVal=-Infinity; lufsIntFrames=LUFS_INT_UPDATE-1;
-  }
+  function resetLoud() { loudReset(); }
 
   function onLoad(){
     peaks={}; barHold={};
-    lufsRingMom=[]; lufsRingST=[]; lufsGatedBuf=[];
-    lufsIntVal=-Infinity; lufsIntFrames=0;
+    loudReset();
     rmsRing=[]; volPeakVal=-Infinity; volPeakExpire=0;
     smoothedL=null; smoothedR=null; smoothedM=null; smoothedS=null; smoothedST=null;
   }

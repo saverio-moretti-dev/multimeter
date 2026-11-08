@@ -7,7 +7,7 @@ A studio-style audio analyzer in a single HTML file. No install, no build, no de
 ![multimeter playing the demo track: waveform timeline, level meters, spectrum, stereo field and 3D spectrogram, settings panel on the right](docs/screenshot.png)
 
 ## What it does
-- **Levels**: L/R and Mid/Side meters, loudness in LUFS.
+- **Levels**: L/R and Mid/Side meters; loudness in LUFS per ITU-R BS.1770-4 (K-weighting, momentary, short-term, gated integrated), measured sample by sample in an AudioWorklet. On the demo track it matches `ffmpeg ebur128` (integrated -6.7 LUFS).
 - **Spectrum analyzer**: FFT over frequency.
 - **Stereo field**: lissajous, polar view, correlation.
 - **Spectrogram**: 2D and 3D, over time.

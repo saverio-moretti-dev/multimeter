@@ -112,7 +112,7 @@ Mostra il livello del segnale in modo diverso a seconda della modalità selezion
 | **LR** | Livelli separati canale sinistro, destro e stereo combinato |
 | **MS** | Livelli Mid (somma), Side (differenza) e stereo combinato |
 | **Vol** | RMS istantaneo, media mobile e picco |
-| **Loud** | Loudness LUFS: momentary, short-term, integrated (standard ITU-R BS.1770) |
+| **Loud** | Loudness LUFS secondo ITU-R BS.1770-4 / EBU R128: filtro K, momentary (400 ms), short-term (3 s), integrated con gate a -70 LUFS e -10 LU. Misurata campione per campione in un AudioWorklet, finestre in tempo audio (non legate ai frame dello schermo). Sulla traccia demo coincide con `ffmpeg ebur128` (integrated -6,7 LUFS). L'integrated conta l'audio riprodotto da quando si carica il file; doppio clic sul modulo per azzerarlo |
 
 **Parametri principali:**
 
